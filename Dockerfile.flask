@@ -1,0 +1,15 @@
+# docker build --tag thesis-python .
+#docker run -d -p 2000:2000 thesis-python
+FROM python:3.8-slim-buster
+
+WORKDIR  /app
+
+COPY Flask-docker-example/requirements.txt requirements.txt
+RUN pip3 install -r requirements.txt
+
+#add this to the requirements.txt
+RUN pip install requests
+
+COPY Flask-docker-example/ .
+
+CMD [ "python3", "-m" , "flask", "run", "--host=0.0.0.0"]

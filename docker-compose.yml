@@ -1,0 +1,19 @@
+version: "3.9"
+services:
+  allen_nlp:
+    build:
+      dockerfile: "Dockerfile.allen"
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./allen_nlp:/app
+  flask:
+    build:
+      dockerfile: "Dockerfile.flask"
+    ports:
+      - "5001:5001"
+    volumes:
+      - ./Flask-docker-example:/app
+networks: 
+  default:
+    driver: custom-driver-1
