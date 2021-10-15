@@ -16,6 +16,7 @@ cd src
 #   The model urls can be found on the model usage page.
 FILE1=coref-spanbert-large-2021.03.10.tar.gz
 FILE2=structured-prediction-srl-bert.2020.12.15.tar.gz
+FILE3=elmo-constituency-parser-2020.02.10.tar.gz
 
 if [[ -f "$FILE1" ]]; then
     echo "Coref-spanbert already exists."
@@ -26,6 +27,11 @@ if [[ -f "$FILE2" ]]; then
     echo "Structured-prediction-srl-bert already exists!"
 else
     wget "https://storage.googleapis.com/allennlp-public-models/structured-prediction-srl-bert.2020.12.15.tar.gz"
+fi
+if [[ -f "$FILE3" ]]; then
+    echo "Elmo-constituency-parser already exists."
+else
+    wget "https://storage.googleapis.com/allennlp-public-models/elmo-constituency-parser-2020.02.10.tar.gz"
 fi
 
 echo ""
