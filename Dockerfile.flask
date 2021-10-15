@@ -9,6 +9,7 @@ RUN pip3 install -r requirements.txt
 
 #add this to the requirements.txt
 RUN pip install requests
+RUN pip install nltk
 
 COPY Flask-docker-example/ .
 
