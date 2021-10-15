@@ -19,7 +19,6 @@ class SemanticRoleLabelling:
       Args:
          - sentences (list(dict)): list of sentences. [{"sentence": "Pete went to the shop."}, {"sentence": "..."}]
       """
-      # url = 'http://172.21.0.3:5000/srl'
       url = 'http://allen_nlp:5000/predict/srl'
       res = requests.post(url, json=sentences)
       self.result = json.loads(res.text)
