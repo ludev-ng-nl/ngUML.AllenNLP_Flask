@@ -15,7 +15,7 @@ class Coreference:
 
    def connect(self, document):
       """Connects to the AllenNLP Container and performs a prediction on the document."""
-      url = 'http://172.21.0.3:5000/predict/coref'
+      url = 'http://allen_nlp:5000/predict/coref'
       input_obj = {'document': document}
       res = requests.post(url, json=input_obj)
       self.result = json.loads(res.text)
