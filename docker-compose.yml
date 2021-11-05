@@ -4,7 +4,7 @@ services:
     build:
       dockerfile: "Dockerfile.allen"
     ports:
-      - "5000:5000"
+      - "5003:5003"
     volumes:
       - ./allen_nlp:/app
     networks:
@@ -18,6 +18,18 @@ services:
       - ./Flask-docker-example:/app
     networks:
       - default
+      - nguml_default
+  stanza:
+    build:
+      dockerfile: "Dockerfile.stanza"
+    ports:
+      - "5002:5002"
+    volumes:
+      - ./stanza:/app
+    networks:
+      - default
 networks: 
   default:
     driver: bridge
+  nguml_default:
+    external: true
