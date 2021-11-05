@@ -12,6 +12,10 @@ class SemanticRoleLabelling:
    #Functions
    def __init__(self) -> None:
       self.result = []
+      self.triples = []
+      self.actors = []
+      self.verbs = []
+      self.objects = []
 
    def connect(self, sentences):
       """Connects to the AllenNLP Container and performs a prediction on the document.
@@ -91,10 +95,52 @@ class SemanticRoleLabelling:
       """
       i = 0
       for sent in output:
-         test = self.get_triples(list_sents[i]['sentence'],sent['verbs'])
+         triples = self.get_triples(list_sents[i]['sentence'],sent['verbs'])
          print('sent: {}'.format(i))
-         self.print_triples(test)
+         self.print_triples(triples)
          i += 1
+
+   def get_all_triples(self,list_sents,output):
+      """Retrieve the triples for all sentences.
+
+      Args:
+         - list_sents (list(dict)): a list of all the sentences in the input_object format.
+         - output (list): list of the output that is for each sentence a key to verbs and words.
+
+      Description:
+         Retrieves the triples for each sentence.
+
+      Returns:
+         - list (): with all triples
+      """
+      self.triples = []
+      for i in range(len(output)):
+         triple = self.get_triples(list_sents[i]['sentence'], output[i]['verbs'])
+         self.triples.append(triple)
+      return self.triples
+
+   def get_actor_verb_object(self):
+      """Retrieve the actors,verbs and objects from the triples.
+
+      Args:
+         None
+
+      Description:
+         Retrieves actors, verbs and objects and fills them into the list variables.
+
+      Returns:
+         list [agents, verbs, objects] e.g. [[['A customer', [0, 1]], 0], [['the CRS', [8, 9]], 0]]]
+      """
+      for index, sentence in enumerate(self.triples):
+         for triple in sentence:
+            if triple[0][1]:
+               if [triple[0],index] not in self.actors:
+                  self.actors.append([triple[0],index])
+            if triple[1][1]:
+               self.verbs.append([triple[1],index])
+            if triple[2][1]:
+               self.objects.append([triple[2],index])
+      return [self.actors, self.verbs, self.objects]
 
    def create_input_object(self,input_text):
       """Create input object from text.
@@ -115,12 +161,12 @@ class SemanticRoleLabelling:
          input_object.append({"sentence": sentence})
       return input_object
 
-#Demonstration
-text = "A customer brings in a defective computer and the CRS checks the defect and hands out a repair cost calculation back. If the customer decides that the costs are acceptable, the process continues, otherwise she takes her computer home unrepaired. The ongoing repair consists of two activities, which are executed, in an arbitrary order. The first activity is to check and repair the hardware, whereas the second activity checks and configures the software. After each of these activities, the proper system functionality is tested. If an error is detected another arbitrary repair activity is executed, otherwise the repair is finished."
+# #Demonstration
+# text = "A customer brings in a defective computer and the CRS checks the defect and hands out a repair cost calculation back. If the customer decides that the costs are acceptable, the process continues, otherwise she takes her computer home unrepaired. The ongoing repair consists of two activities, which are executed, in an arbitrary order. The first activity is to check and repair the hardware, whereas the second activity checks and configures the software. After each of these activities, the proper system functionality is tested. If an error is detected another arbitrary repair activity is executed, otherwise the repair is finished."
 
-srl = SemanticRoleLabelling()
-input_sentences = srl.create_input_object(text)
-srl.connect(input_sentences)
-verbs_test = srl.result['output'][0]['verbs']
-a = srl.get_triples(input_sentences[0]['sentence'], verbs_test)
-srl.print_all_triples(input_sentences, srl.result['output'])
+# srl = SemanticRoleLabelling()
+# input_sentences = srl.create_input_object(text)
+# srl.connect(input_sentences)
+# verbs_test = srl.result['output'][0]['verbs']
+# a = srl.get_triples(input_sentences[0]['sentence'], verbs_test)
+# srl.print_all_triples(input_sentences, srl.result['output'])
