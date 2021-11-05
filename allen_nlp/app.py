@@ -44,6 +44,15 @@ def coreference():
    result = predictor.predict(document=data['document'])
    return jsonify(output=result)
 
+@app.route('/predict/const', methods=['POST'])
+def constituency():
+   data = request.get_json()
+   #TODO add data verification
+   print(data, file=sys.stderr)
+   print("not completely implemented, needs testing", file=sys.stderr)
+   predictor = Predictor.from_path('src/elmo-constituency-parser-2020.02.10.tar.gz')
+   result = predictor.predict_batch_json(data)
+   return jsonify(output=result)
 
 if __name__ == "__main__":
    app.run(host='0.0.0.0', port=5000, debug=True)

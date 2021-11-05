@@ -1,13 +1,20 @@
-import json
-import requests
+from allen_nlp_interface import AllenNLPinterface
 
-class ConstituencyParsing:
+class ConstituencyParsing(AllenNLPinterface):
    """ConstituencyParsing interface to the AllenNLP Constituency parser."""
    def __init__(self) -> None:
-      self.result = []
-   
-   def connect(self):
-      """To connect to the AllenNLP container and perform a prediction."""
-      url = "http://allen_nlp:5000"
-      res = requests.get(url)
-      self.result = res.content
+      AllenNLPinterface.__init__(self,"http://allen_nlp:5000/predict/const")
+      self.result = {}
+
+# text = "A customer brings in a defective computer and the CRS checks the defect. After that she leaves to go home."
+# con = ConstituencyParsing()
+# input_sentences = con.create_input_object(text)
+#
+# The result is a list of dicts, where each dict is the result for a sentence.
+#  the dict has the following keys: ['class_probabilities', 'hierplane_tree', 'num_spans', 'pos_tags', 'spans', 'tokens', 'trees']
+#
+# con.connect(input_sentences)
+
+
+# df = pandas.read_csv("../data/abrs.csv")
+#
