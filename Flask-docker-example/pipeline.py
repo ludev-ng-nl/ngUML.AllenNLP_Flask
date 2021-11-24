@@ -22,6 +22,7 @@ class Pipeline():
       self.nodes = {}
       self.connections = {}
       self.changes = []
+      self.post_url = 'http://django:8000/model/data?uml-type=activity'
 
    def get_text(self) -> None:
       """Function to get the text as input."""
@@ -475,6 +476,15 @@ class Pipeline():
       dat = self.create_data_from_text(activity_name)
       result = requests.post('http://django:8000/model/data?uml-type=activity',json=dat)
       return result
+   
+   def get_activity_from_text_doubles(self,text,activity_name):
+      """Generate activity model from text and post to backend."""
+      self.set_text(text)
+      self.semantic_role_labelling()
+      self.get_doubles()
+      dat = self.create_data_from_doubles(activity_name)
+      result = requests.post(self.post_url,json=dat)
+      return result
 
    def get_list_of_text(self):
       """Create list of words for each sentence."""
@@ -501,11 +511,46 @@ class Pipeline():
       coref.connect(document=self.text)
       coref.parse_data()
       output = coref.find_all_personal_ant()
+      sen_len = self.get_list_sent_lengths()
+      for pp in output:
+         index = 0
+         low_pp = pp[0][1][0]
+         for i in sen_len:
+            if low_pp <= i-1:
+               print('found pp at sen {}'.format(index))
+               # next up check this particular sentence
+               substr = sen_len[index-1] if index > 0 else 0
+               pp_begin = low_pp - substr
+               pp_end = pp[0][1][1] - substr
+               for triple in self.triples[index]:
+                  if triple[0][0] != '':
+                     print(triple[0][0])
+                     if triple[0][1][0] == pp_begin:
+                        if pp_begin != pp_end:
+                           if triple[0][1][1] == pp_end:
+                              # print('triple found!')
+                              # #replace triple
+                              # print('trip: {}'.format(triple[0][0]))
+                              # print('replace: {}'.format(pp[1][0]))
+                              triple[0][0] = pp[1][0]
+                        else:
+                           # print('triple found')
+                           # print(triple[0])
+                           # #replace triple
+                           # print('trip: {}'.format(triple[0][0]))
+                           # print('replace: {}'.format(pp[1][0]))
+                           triple[0][0] = pp[1][0]
+               break
+            index += 1
+      self.coref_res = output
       print(output)
       #transform output to use in comparable with output.
       #Currently output returns items that in the whole text. 
       # While the triple actors are returned per sentence.
       # so important to be able to combine this.
+      #
+      # walk through the coref and normal triple actors to combine.
+
 
 
 # next up do coreference to extract the references to the same actor.
@@ -526,5 +571,6 @@ test_text = "A customer brings in a defective computer and the CRS checks the de
 
 ppl = Pipeline()
 ppl.set_text(test_text)
-test_2 = "A customer enters an order. The inventory manager allocates the stock."
-res = ppl.get_activity_from_text(test_2,"This is a trial")
+# test_2 = "A customer enters an order. The inventory manager allocates the stock."
+res = ppl.get_activity_from_text(test_text,"This is a trial")
+ppl.coreference()

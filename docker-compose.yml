@@ -2,6 +2,7 @@ version: "3.9"
 services:
   allen_nlp:
     build:
+      context: "."
       dockerfile: "Dockerfile.allen"
     ports:
       - "5003:5003"
@@ -11,6 +12,7 @@ services:
       - default
   flask:
     build:
+      context: "."
       dockerfile: "Dockerfile.flask"
     ports:
       - "5001:5001"
@@ -18,9 +20,10 @@ services:
       - ./Flask-docker-example:/app
     networks:
       - default
-      - nguml_default
+      - nguml_backend_default
   stanza:
     build:
+      context: "."
       dockerfile: "Dockerfile.stanza"
     ports:
       - "5002:5002"
@@ -31,5 +34,5 @@ services:
 networks: 
   default:
     driver: bridge
-  nguml_default:
+  nguml_backend_default:
     external: true
