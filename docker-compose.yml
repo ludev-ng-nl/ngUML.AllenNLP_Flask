@@ -5,7 +5,7 @@ services:
       context: "."
       dockerfile: "Dockerfile.allen"
     ports:
-      - "5003:5003"
+      - "5053:5000"
     volumes:
       - ./allen_nlp:/app
     networks:
@@ -15,7 +15,7 @@ services:
       context: "."
       dockerfile: "Dockerfile.flask"
     ports:
-      - "5001:5001"
+      - "5051:5000"
     volumes:
       - ./Flask-docker-example:/app
     networks:
@@ -26,7 +26,7 @@ services:
       context: "."
       dockerfile: "Dockerfile.stanza"
     ports:
-      - "5002:5002"
+      - "5052:5000"
     volumes:
       - ./stanza:/app
     networks:
