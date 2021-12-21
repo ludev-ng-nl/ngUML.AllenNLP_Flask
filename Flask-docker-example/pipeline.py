@@ -18,10 +18,6 @@ class Pipeline():
       self.triples = []
       self.action_nodes = []
       self.doubles = []
-      # self.nodes = {}
-      # self.connections = {}
-      # self.changes = []
-      # self.post_url = 'http://django:8000/model/data?uml-type=activity'
       self.actInterface = actInt.ActivityInterface()
 
 
@@ -93,15 +89,6 @@ class Pipeline():
             if triple[0][1] or triple[2][1]:
                # we have an actor or object
                self.doubles.append(triple)
-
-   # def get_activities_from_server(self) -> Dict:
-   #    """Gets all activity nodes from server."""
-   #    url = 'http://django:8000/model/data?uml-type=activity&request-type=activities'
-   #    result = requests.get(url)
-   #    if result.status_code != 200:
-   #       return {}
-   #    response = json.loads(result.content)
-   #    return response["activities"]
 
    def concat_triples(self):
       """use the found action_nodes to concatenate them, to parse into the editor."""
