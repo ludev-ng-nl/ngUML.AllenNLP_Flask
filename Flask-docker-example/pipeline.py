@@ -7,8 +7,6 @@ from nltk.tokenize import word_tokenize, sent_tokenize
 import semanticrolelabelling as semrol
 import coreference as corefer
 
-
-
 class Pipeline():
    """Pipeline class to combine all the different NLP modules."""
    def __init__(self) -> None:
@@ -114,7 +112,7 @@ class Pipeline():
       return conc_triples
 
    def concat_doubles(self):
-      """use the found action_nodes to concatenate them, to parse into the editor."""
+      """concatenate the names of the found action_nodes, to parse into the editor."""
       conc_doubles = []
       for double in self.doubles:
          out = ""
@@ -476,11 +474,12 @@ class Pipeline():
       dat = self.create_data_from_text(activity_name)
       result = requests.post('http://django:8000/model/data?uml-type=activity',json=dat)
       return result
-   
+
    def get_activity_from_text_doubles(self,text,activity_name):
       """Generate activity model from text and post to backend."""
       self.set_text(text)
       self.semantic_role_labelling()
+      #add coref here? - coref changes the actors. So after that you can get the doubles.
       self.get_doubles()
       dat = self.create_data_from_doubles(activity_name)
       result = requests.post(self.post_url,json=dat)
