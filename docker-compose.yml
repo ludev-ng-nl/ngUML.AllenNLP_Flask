@@ -9,7 +9,8 @@ services:
     volumes:
       - ./allen_nlp:/app
     networks:
-      - default
+      - "default"
+      - "nguml_backend_default"
   flask:
     build:
       context: "."
