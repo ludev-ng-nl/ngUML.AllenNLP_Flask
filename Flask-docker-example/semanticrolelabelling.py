@@ -6,6 +6,8 @@ import nltk
 import text_support as txt_sup
 #import conditionals
 from indicators import conditional_indicators as cond_ind
+from tqdm import tqdm
+
 
 nltk.download('punkt')
 
@@ -235,8 +237,6 @@ def get_sentences_from_srl_tags(tags, output):
          result.append(sent_res)
    return result
 
-
-
 def get_sents_with_tag_for_texts(tag, outputs):
    """Get text for each type of tag
    
@@ -295,7 +295,6 @@ def print_text_sents_data(texts):
             print(item['description'])
             print(item['foundTags'])
 
-#use this for all sentences and all texts.
 def extract_data_based_on_tag(extr_tag, s_tags, s_words,s_index):
    """extract data from a sentence item based on a tag.
    
@@ -319,15 +318,6 @@ def extract_data_based_on_tag(extr_tag, s_tags, s_words,s_index):
    part_sent['foundTag'] = search_tag
    part_sent['senIndex'] = s_index
    return part_sent
-
-# for index,tag in enumerate(s_tags):
-#    if search_tag in tag:
-#       part_sent['senFoundTag'].append(s_words[index])
-#       part_sent['senFoundTagIndex'].append(index)
-#    if tag != 'O':
-#       part_sent['senOtherTags'].append(s_words[index])
-#       part_sent['senOtherTagsIndex'].append(index)
-
 
 def transform_data_for_sentences(sentences):
    """Transform the found data for sentences.
@@ -355,10 +345,6 @@ def transform_data_for_sentences(sentences):
       sentence_data.append(sen_data)
    return sentence_data
 
-
-#ToDo check if the different found tags are within the condition statement.
-# condition = []
-# sen_data = []
 def mark_sentences_with_condition_keywords(sentences_data,words_data):
    """Mark all the sentences if the found tag is also a condition keyword.
 
@@ -389,57 +375,6 @@ def mark_sentences_with_condition_keywords(sentences_data,words_data):
          else:
             item['cond_key'] = False
 
-# extract the part of sentence from it
-# if len(foundTags) > 1: do a for loop 
-# create sentence from the found condition.
-# check if any of the keywords is in the found sentence
-# if true print sentence. 
-
-
-
-# problem with if there are two in the sentence. 
-# the one containing the longest is possible the condition plus the following action for example
-#0: [ARGM-TMP: Whenever] [ARG0: the sales department] [V: receives] [ARG1: an order] , a new process instance is created .
-#1: [ARGM-TMP: Whenever the sales department receives an order] , [ARG1: a new process instance] is [V: created] .
-
-
-txt_s = txt_sup.TextSupport()
-texts = txt_s.get_all_texts_activity('test-data')
-
-results = []
-for text in texts:
-   o = semrol_text(text)
-   results.append(o)
-
-sents = get_sents_with_tag_for_texts('B-ARGM-ADV',results)
-print_text_sents_descriptions(sents)
-sents = get_sents_with_tags_for_texts(['B-ARGM-ADV','B-ARGM-TMP'],results)
-print_text_sents_descriptions(sents)
-
-# #Demonstration
-# text = "A customer brings in a defective computer and the CRS checks the defect and hands out a repair cost calculation back. If the customer decides that the costs are acceptable, the process continues, otherwise she takes her computer home unrepaired. The ongoing repair consists of two activities, which are executed, in an arbitrary order. The first activity is to check and repair the hardware, whereas the second activity checks and configures the software. After each of these activities, the proper system functionality is tested. If an error is detected another arbitrary repair activity is executed, otherwise the repair is finished."
-
-# srl = SemanticRoleLabelling()
-# input_sentences = srl.create_input_object(text)
-# srl.connect(input_sentences)
-# verbs_test = srl.result['output'][0]['verbs']
-# a = srl.get_triples(input_sentences[0]['sentence'], verbs_test)
-# srl.print_all_triples(input_sentences, srl.result['output'])
-
-
-# >>> for sent in s_dat:
-# ...    for item in sent:
-# ...       if item['cond_key']:
-# ...          print(" ".join(item['senFoundTag']))
-
-# >>> for text in s_data:
-# ...    for sent in text:
-# ...       for item in sent:
-# ...          if item['cond_key']:
-# ...             ftag = " ".join(item['senFoundTag'])
-# ...             otag = " ".join(item['senOtherTags'])
-# ...             otagIndex = [x for x in item['senOtherTagsIndex'] if x not in item['senFoundTagIndex']]
-# ...             print("{}: {}".format(otag, " ".join(otagIndex)))
 
 def return_condition_action_from_data(possibleCondition,possibleAction,sentence):
    """Return condition and action from data.
@@ -517,18 +452,46 @@ def extract_condition_action_from_data(condition_data, sentence_data):
             conditionsActions.append(condAct)
    return conditionsActions
 
+txt_s = txt_sup.TextSupport()
+print("Get all texts from the examples folder.")
+texts = txt_s.get_all_texts_activity('test-data')
 
-# Whenever the sales department receives an order: 1 2 3 4 5 6
-# Whenever the sales department receives an order a new process instance created: 8 9 10 11 13
-# If the part is available in - house it reserved: 9 11
-# If it is not available it is back - ordered: 6 7 8 9 10
-# If the storehouse has successfully reserved or back - ordered every item of the part list and the preparation activity has finished the engineering department assembles the bicycle: 23 24 25 26 27 28
-# The waiter may wait to do the billing if he has another order to prepare or deliver: 0 1 2 3 4 5 6 7
-# Whenever a company makes the decision to go public: 1 2 3 4 5 6 7 8
-# Whenever a company makes the decision to go public its first task is to select the underwriters: 10 11 12 13 14 15 16 17
+results = []
+print("SRL for each text.")
+for text in tqdm(texts):
+   o = semrol_text(text)
+   results.append(o)
 
+# sents = get_sents_with_tag_for_texts('B-ARGM-ADV',results)
+# print_text_sents_descriptions(sents)
+print("Extract tags for each text.")
+sents = get_sents_with_tags_for_texts(['B-ARGM-ADV','B-ARGM-TMP'],results)
+print_text_sents_descriptions(sents)
+
+# #Demonstration
+# text = "A customer brings in a defective computer and the CRS checks the defect and hands out a repair cost calculation back. If the customer decides that the costs are acceptable, the process continues, otherwise she takes her computer home unrepaired. The ongoing repair consists of two activities, which are executed, in an arbitrary order. The first activity is to check and repair the hardware, whereas the second activity checks and configures the software. After each of these activities, the proper system functionality is tested. If an error is detected another arbitrary repair activity is executed, otherwise the repair is finished."
+
+# srl = SemanticRoleLabelling()
+# input_sentences = srl.create_input_object(text)
+# srl.connect(input_sentences)
+# verbs_test = srl.result['output'][0]['verbs']
+# a = srl.get_triples(input_sentences[0]['sentence'], verbs_test)
+# srl.print_all_triples(input_sentences, srl.result['output'])
+
+
+print("Transform data for sentences based on tags")
 s_data = []
-for text in sents:
+for text in tqdm(sents):
    res = transform_data_for_sentences(text)
    mark_sentences_with_condition_keywords(res,text)
    s_data.append(res)
+
+condActions = []
+for ix, text in enumerate(s_data):
+   print('run {}'.format(ix))
+   res = extract_condition_action_from_data(text,sents[ix])
+   condActions.append(res)
+
+for text in condActions:
+   for sent in text:
+      print('c: {} \t a: {}'.format(" ".join(sent[0]['condition'])," ".join(sent[1]['action'])))
