@@ -38,7 +38,7 @@ class ConditionExtraction():
          - result (list(string)): List of all sentences found in output that have the given tag.
       """
       result = []
-      for sen in output:
+      for s_index, sen in enumerate(output):
          sent_res = {}
          sent_res['words'] = sen['words']
          sent_res['verbs'] = []
@@ -49,6 +49,7 @@ class ConditionExtraction():
                item['description'] = res['description']
                item['tags'] = res['tags']
                item['foundTags'] = tagsInSent
+               item['s_index_text'] = s_index
                sent_res['verbs'].append(item)
          #check if sen_res['verbs'] not an empty list.
          if sent_res['verbs']:
@@ -113,14 +114,15 @@ class ConditionExtraction():
                print(item['description'])
                print(item['foundTags'])
 
-   def extract_data_based_on_tag(self, extr_tag, s_tags, s_words,s_index):
+   def extract_data_based_on_tag(self, extr_tag, s_tags, s_words,s_index,s_index_text):
       """extract data from a sentence item based on a tag.
         
       Args:
          - extr_tag (str): the tag searching for in the sentence. e.g. 'B-ADV-MOD'
          - s_tags: tags within a sentence
          - s_words: words of a sentence
-         - s_index: index of the sentence in the text
+         - s_index: index of the sentence in the set of found sentences with the tag
+         - s_index_text: index of the sentence in the text
         
       Return:
          Data about a sentence.
@@ -136,6 +138,8 @@ class ConditionExtraction():
             part_sent['senOtherTagsIndex'].append(index)
       part_sent['foundTag'] = search_tag
       part_sent['senIndex'] = s_index
+      part_sent['s_index_text'] = s_index_text
+
       return part_sent
 
    def transform_data_for_sentences(self,sentences):
@@ -155,11 +159,11 @@ class ConditionExtraction():
             if len(sen['foundTags']) > 1:
                # multiple tags in the same annotated sentence.
                for tag in sen['foundTags']:
-                  found_data = self.extract_data_based_on_tag(tag,sen['tags'],sentence['words'],sen_ind)
+                  found_data = self.extract_data_based_on_tag(tag,sen['tags'],sentence['words'],sen_ind,sen['s_index_text'])
                   sen_data.append(found_data)
             else:
                #normal case
-               found_data = self.extract_data_based_on_tag(sen['foundTags'][0],sen['tags'],sentence['words'],sen_ind)
+               found_data = self.extract_data_based_on_tag(sen['foundTags'][0],sen['tags'],sentence['words'],sen_ind,sen['s_index_text'])
                sen_data.append(found_data)
          sentence_data.append(sen_data)
       return sentence_data
@@ -212,6 +216,7 @@ class ConditionExtraction():
          A list item with a condition and action.
       """
       senIndex = possibleCondition['senIndex']
+      s_index_text = possibleCondition['s_index_text']
       if len(possibleCondition['condIndexes']) > 1:
          # Currently only one condition in a sentence is implemented -> see the [0] key on the ['condIndexes'][0]
          print('There are multiple condition indexes in this sentence, which is not implemented')
@@ -220,11 +225,11 @@ class ConditionExtraction():
          # if the condition is the same as the action we check in the same sentence instead of another.
          conditionIndex = [x for x in possibleCondition['senFoundTagIndex'] if x not in possibleCondition['condIndexes'][0]]
       condition = [x for ix,x in enumerate(sentence) if ix in conditionIndex]
-      cond = {'condition': condition, 'conditionIndex': conditionIndex, 'senIndex': senIndex}
+      cond = {'condition': condition, 'conditionIndex': conditionIndex, 'senIndex': senIndex, 's_index_text': s_index_text}
       #extract action
       actionIndex = [x for x in possibleAction['senOtherTagsIndex'] if x not in possibleAction['senFoundTagIndex']]
       action = [x for ix,x in enumerate(sentence) if ix in actionIndex]
-      act = {'action': action, 'actionIndex': actionIndex, 'senIndex': senIndex}
+      act = {'action': action, 'actionIndex': actionIndex, 'senIndex': senIndex, 's_index_text': s_index_text}
       return [cond,act]
 
 
@@ -272,6 +277,7 @@ class ConditionExtraction():
                conditionsActions.append(condAct)
       return conditionsActions
 
+# Interface / Demonstration part - and helper functions.
 
 def semrol_text(text):
    srl = semrol.SemanticRoleLabelling()
@@ -279,48 +285,79 @@ def semrol_text(text):
    srl.connect(data)
    return srl.result['output']
 
-txt_s = txt_sup.TextSupport()
-print("Get all texts from the examples folder.")
-texts = txt_s.get_all_texts_activity('test-data')
+def get_text_from_folder(folder):
+   """Get the text files into the memory based on a folder.
+   
+   Args:
+      - folder (str): a folder with the text files that need to be loaded.
+   
+   Returns:
+      - texts list(str): a list of all the texts (str) presented in the folder.
+   """
+   txt_s = txt_sup.TextSupport()
+   print("Get all texts from the examples folder.")
+   texts = txt_s.get_all_texts_activity(folder)
+   # texts = txt_s.get_all_texts_activity('test-data')
+   return texts
 
-results = []
-print("SRL for each text.")
-for text in tqdm(texts):
-   o = semrol_text(text)
-   results.append(o)
+def srl_for_all_texts(texts):
+   """Do semantic role labelling for each text in texts
+   
+   Args:
+      - texts list(str): text for each given text file.
+   
+   Returns:
+      - results list(list(str)): a list for each text containing a list of results 
+         per sentence from the text with SRL data.
+   """
+   results = []
+   print("SRL for each text.")
+   for text in tqdm(texts):
+      o = semrol_text(text)
+      results.append(o)
+   return results
 
-# sents = get_sents_with_tag_for_texts('B-ARGM-ADV',results)
-# print_text_sents_descriptions(sents)
-condExtr = ConditionExtraction()
-print("Extract tags for each text.")
-sents = condExtr.get_sents_with_tags_for_texts(['B-ARGM-ADV','B-ARGM-TMP'],results)
-condExtr.print_text_sents_descriptions(sents)
+def condition_extraction_for_texts(results):
+   """Do condition extraction for the SRL results from several texts.
+   
+   Args:
+      - results (list(list(dict))): SRL result for each text given as text and a dict of verbs and tags.
+   
+   Returns
+      - condActions (list(list(dict))): a list with all the found condition, action combinations for each text.
+   """
+   condExtr = ConditionExtraction()
+   print("Extract tags for each text.")
+   sents = condExtr.get_sents_with_tags_for_texts(['B-ARGM-ADV','B-ARGM-TMP'],results)
+   condExtr.print_text_sents_descriptions(sents)
+   print("Transform data for sentences based on tags")
+   s_data = []
+   for text in tqdm(sents):
+      res = condExtr.transform_data_for_sentences(text)
+      condExtr.mark_sentences_with_condition_keywords(res,text)
+      s_data.append(res)
 
-# #Demonstration
-# text = "A customer brings in a defective computer and the CRS checks the defect and hands out a repair cost calculation back. If the customer decides that the costs are acceptable, the process continues, otherwise she takes her computer home unrepaired. The ongoing repair consists of two activities, which are executed, in an arbitrary order. The first activity is to check and repair the hardware, whereas the second activity checks and configures the software. After each of these activities, the proper system functionality is tested. If an error is detected another arbitrary repair activity is executed, otherwise the repair is finished."
+   condActions = []
+   for ix, text in enumerate(s_data):
+      print(text)
+      res = condExtr.extract_condition_action_from_data(text,sents[ix])
+      condActions.append(res)
+   return condActions
 
-# srl = SemanticRoleLabelling()
-# input_sentences = srl.create_input_object(text)
-# srl.connect(input_sentences)
-# verbs_test = srl.result['output'][0]['verbs']
-# a = srl.get_triples(input_sentences[0]['sentence'], verbs_test)
-# srl.print_all_triples(input_sentences, srl.result['output'])
+def print_condition_actions(conditionActions):
+   """Print the conditions and actions given in the conditionActions.
+   
+   Args:
+      - list(list(dict)) : a list of texts with sentences that have a dict about each condition and action combination.
+   """
+   # ix = 0
+   for text in conditionActions:
+      for sent in text:
+         print('c: {} \t a: {}'.format(" ".join(sent[0]['condition'])," ".join(sent[1]['action'])))
 
 
-print("Transform data for sentences based on tags")
-s_data = []
-for text in tqdm(sents):
-   res = condExtr.transform_data_for_sentences(text)
-   condExtr.mark_sentences_with_condition_keywords(res,text)
-   s_data.append(res)
-
-condActions = []
-for ix, text in enumerate(s_data):
-   print(text)
-   res = condExtr.extract_condition_action_from_data(text,sents[ix])
-   condActions.append(res)
-
-ix = 0
-for text in condActions:
-   for sent in text:
-      print('c: {} \t a: {}'.format(" ".join(sent[0]['condition'])," ".join(sent[1]['action'])))
+#Demonstration
+texts = get_text_from_folder('test-data')
+results = srl_for_all_texts(texts)
+condActions = condition_extraction_for_texts(results)
+print_condition_actions(condActions)
