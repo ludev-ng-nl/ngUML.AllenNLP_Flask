@@ -278,92 +278,96 @@ class ConditionExtraction():
       return conditionsActions
 
 # Interface / Demonstration part - and helper functions.
-
-def semrol_text(text):
-   srl = semrol.SemanticRoleLabelling()
-   data = srl.create_input_object(text)
-   srl.connect(data)
-   return srl.result['output']
-
-def get_text_from_folder(folder):
-   """Get the text files into the memory based on a folder.
+class ConditionExtractionInterface():
+   def __init__(self) -> None:
+       pass
    
-   Args:
-      - folder (str): a folder with the text files that need to be loaded.
-   
-   Returns:
-      - texts list(str): a list of all the texts (str) presented in the folder.
-   """
-   txt_s = txt_sup.TextSupport()
-   print("Get all texts from the examples folder.")
-   texts = txt_s.get_all_texts_activity(folder)
-   # texts = txt_s.get_all_texts_activity('test-data')
-   return texts
+   def semrol_text(self,text):
+      srl = semrol.SemanticRoleLabelling()
+      data = srl.create_input_object(text)
+      srl.connect(data)
+      return srl.result['output']
 
-def create_single_text_input(text_string):
-   """Creates a list of texts based on a single string of text."""
-   return [text_string]
+   def get_text_from_folder(self,folder):
+      """Get the text files into the memory based on a folder.
+      
+      Args:
+         - folder (str): a folder with the text files that need to be loaded.
+      
+      Returns:
+         - texts list(str): a list of all the texts (str) presented in the folder.
+      """
+      txt_s = txt_sup.TextSupport()
+      print("Get all texts from the examples folder.")
+      texts = txt_s.get_all_texts_activity(folder)
+      # texts = txt_s.get_all_texts_activity('test-data')
+      return texts
 
-def srl_for_all_texts(texts):
-   """Do semantic role labelling for each text in texts
-   
-   Args:
-      - texts list(str): text for each given text file.
-   
-   Returns:
-      - results list(list(str)): a list for each text containing a list of results 
-         per sentence from the text with SRL data.
-   """
-   results = []
-   print("SRL for each text.")
-   for text in tqdm(texts):
-      o = semrol_text(text)
-      results.append(o)
-   return results
+   def create_single_text_input(self,text_string):
+      """Creates a list of texts based on a single string of text."""
+      return [text_string]
 
-def condition_extraction_for_texts(results):
-   """Do condition extraction for the SRL results from several texts.
-   
-   Args:
-      - results (list(list(dict))): SRL result for each text given as text and a dict of verbs and tags.
-   
-   Returns
-      - condActions (list(list(dict))): a list with all the found condition, action combinations for each text.
-   """
-   condExtr = ConditionExtraction()
-   print("Extract tags for each text.")
-   sents = condExtr.get_sents_with_tags_for_texts(['B-ARGM-ADV','B-ARGM-TMP'],results)
-   condExtr.print_text_sents_descriptions(sents)
-   print("Transform data for sentences based on tags")
-   s_data = []
-   for text in tqdm(sents):
-      res = condExtr.transform_data_for_sentences(text)
-      condExtr.mark_sentences_with_condition_keywords(res,text)
-      s_data.append(res)
+   def srl_for_all_texts(self,texts):
+      """Do semantic role labelling for each text in texts
+      
+      Args:
+         - texts list(str): text for each given text file.
+      
+      Returns:
+         - results list(list(str)): a list for each text containing a list of results 
+            per sentence from the text with SRL data.
+      """
+      results = []
+      print("SRL for each text.")
+      for text in tqdm(texts):
+         o = self.semrol_text(text)
+         results.append(o)
+      return results
 
-   condActions = []
-   for ix, text in enumerate(s_data):
-      print(text)
-      res = condExtr.extract_condition_action_from_data(text,sents[ix])
-      condActions.append(res)
-   return condActions
+   def condition_extraction_for_texts(self,results):
+      """Do condition extraction for the SRL results from several texts.
+      
+      Args:
+         - results (list(list(dict))): SRL result for each text given as text and a dict of verbs and tags.
+      
+      Returns
+         - condActions (list(list(dict))): a list with all the found condition, action combinations for each text.
+      """
+      condExtr = ConditionExtraction()
+      print("Extract tags for each text.")
+      sents = condExtr.get_sents_with_tags_for_texts(['B-ARGM-ADV','B-ARGM-TMP'],results)
+      condExtr.print_text_sents_descriptions(sents)
+      print("Transform data for sentences based on tags")
+      s_data = []
+      for text in tqdm(sents):
+         res = condExtr.transform_data_for_sentences(text)
+         condExtr.mark_sentences_with_condition_keywords(res,text)
+         s_data.append(res)
 
-def print_condition_actions(conditionActions):
-   """Print the conditions and actions given in the conditionActions.
-   
-   Args:
-      - list(list(dict)) : a list of texts with sentences that have a dict about each condition and action combination.
-   """
-   # ix = 0
-   for text in conditionActions:
-      for sent in text:
-         print('c: {} \t a: {}'.format(" ".join(sent[0]['condition'])," ".join(sent[1]['action'])))
+      condActions = []
+      for ix, text in enumerate(s_data):
+         print(text)
+         res = condExtr.extract_condition_action_from_data(text,sents[ix])
+         condActions.append(res)
+      return condActions
+
+   def print_condition_actions(self,conditionActions):
+      """Print the conditions and actions given in the conditionActions.
+      
+      Args:
+         - list(list(dict)) : a list of texts with sentences that have a dict about each condition and action combination.
+      """
+      # ix = 0
+      for text in conditionActions:
+         for sent in text:
+            print('c: {} \t a: {}'.format(" ".join(sent[0]['condition'])," ".join(sent[1]['action'])))
 
 #Demonstration
 #
 # #Demonstration with single text
 # texts = create_single_text_input("This is a string of texts. Which presents an input. If the part is in-house the order is built.")
-texts = get_text_from_folder('test-data')
-results = srl_for_all_texts(texts)
-condActions = condition_extraction_for_texts(results)
-print_condition_actions(condActions)
+condExInterface = ConditionExtractionInterface()
+texts = condExInterface.get_text_from_folder('test-data')
+results = condExInterface.srl_for_all_texts(texts)
+condActions = condExInterface.condition_extraction_for_texts(results)
+condExInterface.print_condition_actions(condActions)
