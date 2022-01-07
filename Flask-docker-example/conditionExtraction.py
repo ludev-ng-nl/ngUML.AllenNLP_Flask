@@ -300,6 +300,10 @@ def get_text_from_folder(folder):
    # texts = txt_s.get_all_texts_activity('test-data')
    return texts
 
+def create_single_text_input(text_string):
+   """Creates a list of texts based on a single string of text."""
+   return [text_string]
+
 def srl_for_all_texts(texts):
    """Do semantic role labelling for each text in texts
    
@@ -355,8 +359,10 @@ def print_condition_actions(conditionActions):
       for sent in text:
          print('c: {} \t a: {}'.format(" ".join(sent[0]['condition'])," ".join(sent[1]['action'])))
 
-
 #Demonstration
+#
+# #Demonstration with single text
+# texts = create_single_text_input("This is a string of texts. Which presents an input. If the part is in-house the order is built.")
 texts = get_text_from_folder('test-data')
 results = srl_for_all_texts(texts)
 condActions = condition_extraction_for_texts(results)
