@@ -1,8 +1,10 @@
 from flask import Flask
 from flask import request
 from flask import jsonify
+from flask.typing import StatusCode
 app = Flask(__name__)
 
+import flask
 import sys
 import nltk
 from allennlp.predictors.predictor import Predictor
@@ -17,8 +19,17 @@ nltk.download('punkt')
 def hello_world():
    return 'Hello Docker!'
 
-@app.route('/predict/srl', methods=['POST'])
+def handle_get_request(serviceName):
+   """Handle get request to check if the service is running."""
+   print(f"AllenNLP service for {serviceName} is running.")
+   return jsonify(isError=False,
+                  message="Success",
+                  StatusCode=200)
+
+@app.route('/predict/srl', methods=['GET','POST'])
 def predict():
+   if flask.request.method == 'GET':
+      return handle_get_request("Semantic Role Labelling")
    data = request.get_json()
    if type(data) != list:
       return "Posted data is not a list, provide a list with items that are dicts of sentences."
@@ -31,9 +42,11 @@ def predict():
    result = predictor.predict_batch_json(data)
    return jsonify(output=result)
 
-@app.route('/predict/coref', methods=['POST'])
+@app.route('/predict/coref', methods=['GET','POST'])
 def coreference():
    #Implement the coreference part of the AllenNLP library.
+   if flask.request.method == 'GET':
+      return handle_get_request("Coreference")
    data = request.get_json()
    print(data, file=sys.stderr)
    if not isinstance(data, Mapping):
@@ -44,8 +57,10 @@ def coreference():
    result = predictor.predict(document=data['document'])
    return jsonify(output=result)
 
-@app.route('/predict/const', methods=['POST'])
+@app.route('/predict/const', methods=['GET','POST'])
 def constituency():
+   if flask.request.method == 'GET':
+      return handle_get_request("Constituency Parsing")
    data = request.get_json()
    #TODO add data verification
    print(data, file=sys.stderr)
