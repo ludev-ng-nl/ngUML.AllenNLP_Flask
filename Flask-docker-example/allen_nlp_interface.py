@@ -7,15 +7,35 @@ class AllenNLPinterface:
    def __init__(self,url) -> None:
       self.result = []
       self.url = url
-    
+   
+   def service_online(self):
+      try:
+         get = requests.get(self.url)
+         if get.status_code == 200:
+            # print(f"{self.url}: is reachable")
+            return True
+         else:
+            print(f"{self.url}: is Not reachable, status_code: {get.status_code}. Is the AllenNLP service running?")
+            return False
+      except requests.exceptions.RequestException as e:
+         print(f"{self.url}: is Not reachable \nErr:{e}. Is the AllenNLP service running?")
+         return False
+
    def connect(self,sentences):
       """Connects to the AllenNLP Container and performs a prediction on the document.
 
       Args:
          - sentences (list(dict)): list of sentences. [{"sentence": "Pete went to the shop."}, {"sentence": "..."}]
+      
+      Returns:
+         - False: if the service is not online
+         - True: if the service is online and the data is loaded.
       """
+      if not self.service_online():
+         return False
       res = requests.post(self.url, json=sentences)
       self.result = json.loads(res.text)
+      return True
    
    def create_input_object(self,input_text):
       """Create input object from text.

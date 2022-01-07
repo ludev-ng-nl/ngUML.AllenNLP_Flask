@@ -9,10 +9,25 @@ class ActivityInterface():
       self.connections = {}
       self.changes = []
       self.post_url = 'http://django:8000/model/data?uml-type=activity'
-    
+
+   def service_online(self, url):
+      try:
+         get = requests.get(url)
+         if get.status_code == 200:
+            # print(f"{self.url}: is reachable")
+            return True
+         else:
+            print(f"{url}: is Not reachable, status_code: {get.status_code}. Is the ngUML Django service running?")
+            return False
+      except requests.exceptions.RequestException as e:
+         print(f"{url}: is Not reachable \nErr:{e}. Is the ngUML Django service running?")
+         return False
+
    def get_activities_from_server(self):
       """Gets all activity nodes from server."""
       url = self.post_url + '&request-type=activities'
+      if not self.service_online(url):
+         return {}
       result = requests.get(url)
       if result.status_code != 200:
          return {}
@@ -274,6 +289,8 @@ class ActivityInterface():
       """
       data = self.create_post_data_dict()
       data["changes"].append(activity)
+      if not self.service_online(self.post_url):
+         return -1
       result = requests.post(self.post_url,json=data)
       if result.status_code != 200:
          print("Something wrent wrong with posting the create_activity_server.")
@@ -304,4 +321,19 @@ class ActivityInterface():
       data["nodes"] = self.nodes
       data["connections"] = self.connections
       data["changes"] = self.changes
-      return data  
+      return data
+   
+   def post_activity_data_to_server(self,url,data):
+      """Posts the activity data to the server.
+      
+      Args:
+         - url (str): the url where the data needs to be posted to.
+         - data (dict): with all the data of the new activity model.
+      
+      Returns:
+         - result (...): request from the api
+      """
+      if not self.service_online(url):
+         return []
+      result = requests.post(url,json=data)
+      return result
