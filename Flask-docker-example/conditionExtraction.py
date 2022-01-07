@@ -285,7 +285,8 @@ class ConditionExtractionInterface():
    def semrol_text(self,text):
       srl = semrol.SemanticRoleLabelling()
       data = srl.create_input_object(text)
-      srl.connect(data)
+      if not srl.connect(data):
+         return []
       return srl.result['output']
 
    def get_text_from_folder(self,folder):

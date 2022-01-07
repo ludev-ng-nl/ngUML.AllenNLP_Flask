@@ -18,7 +18,7 @@ class Pipeline():
       self.triples = []
       self.action_nodes = []
       self.doubles = []
-      self.actInterface = actInt.ActivityInterface()
+      self.actInt = actInt.ActivityInterface()
 
 
    def get_text(self) -> None:
@@ -59,8 +59,10 @@ class Pipeline():
       srl = semrol.SemanticRoleLabelling()
 
       input_sents = srl.create_input_object(self.text)
-      srl.connect(input_sents)
-      self.triples = srl.get_all_triples(srl.result['output'])
+      srl_output = []
+      if srl.connect(input_sents):
+         srl_output = srl.result['output']
+      self.triples = srl.get_all_triples(srl_output)
       avo = srl.get_actor_verb_object()
       self.actors = avo[0]
       self.verbs = avo[1]
@@ -114,44 +116,44 @@ class Pipeline():
 
    def create_data_from_text(self,activity_name):
       """Create an activity model from text with the triples."""
-      self.actInterface.clear_data()
-      act = self.actInterface.create_activity(activity_name,{})
-      act_id = self.actInterface.create_activity_server(act)
+      self.actInt.clear_data()
+      act = self.actInt.create_activity(activity_name,{})
+      act_id = self.actInt.create_activity_server(act)
       act['type'] = 'retype-activity'
-      self.actInterface.changes.append(act)
+      self.actInt.changes.append(act)
       conc_triples = self.concat_triples()
-      self.actInterface.create_add_node(act_id,'Initial',{'name': 'Initial'})
+      self.actInt.create_add_node(act_id,'Initial',{'name': 'Initial'})
       for triple in conc_triples:
-         self.actInterface.create_add_node(act_id,'Action',{'name':triple})
-      self.actInterface.create_add_node(act_id,'ActivityFinal',{'name':'Final'})
-      node_keys = [key for key in self.actInterface.nodes]
+         self.actInt.create_add_node(act_id,'Action',{'name':triple})
+      self.actInt.create_add_node(act_id,'ActivityFinal',{'name':'Final'})
+      node_keys = [key for key in self.actInt.nodes]
       for index, item in enumerate(node_keys):
          from_node = item
          if index < len(node_keys)-1:
             to_node = node_keys[index+1]
-            self.actInterface.create_connection(act_id,from_node,to_node,{})
-      dat = self.actInterface.post_data()
+            self.actInt.create_connection(act_id,from_node,to_node,{})
+      dat = self.actInt.post_data()
       return dat
 
    def create_data_from_doubles(self,activity_name):
       """create an activity with nodes based on doubles."""
-      self.actInterface.clear_data()
-      act = self.actInterface.create_activity(activity_name,{})
-      act_id = self.actInterface.create_activity_server(act)
+      self.actInt.clear_data()
+      act = self.actInt.create_activity(activity_name,{})
+      act_id = self.actInt.create_activity_server(act)
       act['type'] = 'retype-activity'
-      self.actInterface.changes.append(act)
+      self.actInt.changes.append(act)
       conc_doubles = self.concat_doubles()
-      self.actInterface.create_add_node(act_id,'Initial',{'name': 'Initial'})
+      self.actInt.create_add_node(act_id,'Initial',{'name': 'Initial'})
       for triple in conc_doubles:
-         self.actInterface.create_add_node(act_id,'Action',{'name':triple})
-      self.actInterface.create_add_node(act_id,'ActivityFinal',{'name':'Final'})
-      node_keys = [key for key in self.actInterface.nodes]
+         self.actInt.create_add_node(act_id,'Action',{'name':triple})
+      self.actInt.create_add_node(act_id,'ActivityFinal',{'name':'Final'})
+      node_keys = [key for key in self.actInt.nodes]
       for index, item in enumerate(node_keys):
          from_node = item
          if index < len(node_keys)-1:
             to_node = node_keys[index+1]
-            self.actInterface.create_connection(act_id,from_node,to_node,{})
-      dat = self.actInterface.post_data()
+            self.actInt.create_connection(act_id,from_node,to_node,{})
+      dat = self.actInt.post_data()
       return dat
 
    def get_activity_from_text(self,text,activity_name):
@@ -168,8 +170,9 @@ class Pipeline():
       self.semantic_role_labelling()
       self.get_action_nodes()
       dat = self.create_data_from_text(activity_name)
-      result = requests.post(self.actInterface.post_url,json=dat)
-      return result
+      # result = requests.post(self.actInt.post_url,json=dat)
+      # return result
+      return self.actInt.post_activity_data_to_server(self.actInt.post_url,dat)
 
    def get_activity_from_text_doubles(self,text,activity_name):
       """Generate activity model from text and post to backend."""
@@ -178,8 +181,8 @@ class Pipeline():
       #add coref here? - coref changes the actors. So after that you can get the doubles.
       self.get_doubles()
       dat = self.create_data_from_doubles(activity_name)
-      result = requests.post(self.actInterface.post_url,json=dat)
-      return result
+      
+      return self.actInt.post_activity_data_to_server(self.actInt.post_url,dat)
 
    def get_list_of_text(self):
       """Create list of words for each sentence."""
