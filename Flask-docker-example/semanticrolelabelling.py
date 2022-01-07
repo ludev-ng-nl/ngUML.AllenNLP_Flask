@@ -1,35 +1,25 @@
 """Module to connect to api with AllenNLP running and transform the outcomes."""
 import json
-# from nltk import text
 import requests
 import nltk
 import text_support as txt_sup
-#import conditionals
+from allen_nlp_interface import AllenNLPinterface
 from indicators import conditional_indicators as cond_ind
 from tqdm import tqdm
 
 
 nltk.download('punkt')
 
-class SemanticRoleLabelling:
+class SemanticRoleLabelling(AllenNLPinterface):
    """SemanticRoleLabelling interface to the AllenNLP SRL."""
    #Functions
    def __init__(self) -> None:
+      AllenNLPinterface.__init__(self,"http://allen_nlp:5000/predict/srl")
       self.result = []
       self.triples = []
       self.actors = []
       self.verbs = []
       self.objects = []
-
-   def connect(self, sentences):
-      """Connects to the AllenNLP Container and performs a prediction on the document.
-
-      Args:
-         - sentences (list(dict)): list of sentences. [{"sentence": "Pete went to the shop."}, {"sentence": "..."}]
-      """
-      url = 'http://allen_nlp:5000/predict/srl'
-      res = requests.post(url, json=sentences)
-      self.result = json.loads(res.text)
 
    def get_triple(self,sentence, verb_tags):
       """Get a triple based on the sentence and the verb_tags.
@@ -145,24 +135,6 @@ class SemanticRoleLabelling:
                self.objects.append([triple[2],index])
       return [self.actors, self.verbs, self.objects]
 
-   def create_input_object(self,input_text):
-      """Create input object from text.
-
-      Description:
-         Split the text into sentences and add them to a list in the format necessary to
-         process them simultanuously.
-
-      Args:
-         - input_text (str): string of text needed to parse with semantic role labelling.
-
-      Returns:
-         - input_object (list(dict_items)): List of dict items. Each dict item specifies a sentence.
-      """
-      sen_list = nltk.tokenize.sent_tokenize(input_text)
-      input_object = []
-      for sentence in sen_list:
-         input_object.append({"sentence": sentence})
-      return input_object
    
    ## From here we work on the condition extraction.
    def get_sentences_from_srl_tag(self,tag,output):
