@@ -5,6 +5,7 @@ from typing import Dict
 import requests
 from nltk.tokenize import word_tokenize, sent_tokenize
 import activityInterface as actInt
+import conditionExtraction as condExtr
 import semanticrolelabelling as semrol
 import coreference as corefer
 
@@ -19,6 +20,7 @@ class Pipeline():
       self.action_nodes = []
       self.doubles = []
       self.actInt = actInt.ActivityInterface()
+      self.srl_output = []
 
 
    def get_text(self) -> None:
@@ -62,6 +64,7 @@ class Pipeline():
       srl_output = []
       if srl.connect(input_sents):
          srl_output = srl.result['output']
+      self.srl_output = srl_output
       self.triples = srl.get_all_triples(srl_output)
       avo = srl.get_actor_verb_object()
       self.actors = avo[0]
@@ -272,3 +275,8 @@ ppl.set_text(test_text)
 # test_2 = "A customer enters an order. The inventory manager allocates the stock."
 res = ppl.get_activity_from_text(test_text,"This is a trial")
 ppl.coreference()
+
+#Condition extraction
+condSRLResults = [ppl.srl_output]
+condExInt = condExtr.ConditionExtractionInterface()
+condActions = condExInt.condition_extraction_for_texts(condSRLResults)
