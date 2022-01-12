@@ -401,30 +401,39 @@ texts = condExInt.get_text_from_folder('test-data')
 results = condExInt.srl_for_all_texts(texts)
 condActions = condExInt.condition_extraction_for_texts(results)
 # condExInt.print_condition_actions(condActions)
-res = condExInt.indicator_condition_extraction_for_texts(texts)
+resConditons = condExInt.indicator_condition_extraction_for_texts(texts)
 
 # Used the part above to setup for texting
 # also check Condition analysis.xlsx in the misc folder of the google drive.
 
-# Printing all sentences and tags for analysis
-for index, text_item in enumerate(res):
-   for ix in text_item['sen_ids']:
-      print("\n")
-      print(" ".join(results[index][ix]['words']))
-      for result in results[index][ix]['verbs']:
-         print(" ".join(result['tags']))
+def print_sent_and_tags_analysis(conditionResults, results):
+   """Print sentences with conditions and all their tags from SRL for easy analysis and copying to excel.
+   
+   Args:
+      - conditionResults (list(dict)): data on which sentences have conditional indicators. e.g. {'sen_ids': [6, 7, 10], 'sen_id_data': {6: ['if'], 7: ['if'], 10: ['if']}}
+      - results (list(dict)): Result data from the SRL result.
+   Returns:
+      - None
+   """
+   for index, text_item in enumerate(conditionResults):
+      for ix in text_item['sen_ids']:
+         print("\n")
+         print(" ".join(results[index][ix]['words']))
+         for result in results[index][ix]['verbs']:
+            print(" ".join(result['tags']))
 
 #finish this one -> see the notes on paper.
-for index, text_item in enumerate(res):
-   for ix in text_item['sen_ids']:
-      sent = [x.lower() for x in results[index][ix]['words']]
-      sen_data = text_item['sen_id_data'][ix]
-      for cond in sen_data:
-         cond_ix = sent.index(cond)
-         print("{}: {}".format(ix, " ".join(sent[cond_ix:])))
+# for index, text_item in enumerate(resConditons):
+#    for ix in text_item['sen_ids']:
+#       sent = [x.lower() for x in results[index][ix]['words']]
+#       sen_data = text_item['sen_id_data'][ix]
+#       for cond in sen_data:
+#          cond_ix = sent.index(cond)
+#          print("{}: {}".format(ix, " ".join(sent[cond_ix:])))
 
-def check_for_adverbial(cond_index, sent_index,result):
+def check_for_adverbial(cond_index_list, sent_index,result):
    """Check if there is an adverbial in the sentence on the condition index."""
+   cond_index = cond_index_list[1]
    cond_tags = [x['tags'][cond_index] for x in result[sent_index]['verbs']]
    cond_adv_sents_index = [i for i,x in enumerate(cond_tags) if x == 'B-ARGM-ADV']
    if not cond_adv_sents_index:
@@ -439,18 +448,19 @@ sent_index = 10
 result = results[0]
 # cond_tags = [x['tags'][cond_index] for x in results[0][sent_index]['verbs']]
 # cond_adv_sents_index = [i for i,x in enumerate(cond_tags) if x == 'B-ARGM-ADV']
-def get_adverbial(cond_index,sent_index,result):
+def get_adverbial(cond_index_list,sent_index,result):
    """Retrieve an adverbial SRL if it is in the same index as the condition.
    
    Args:
-      - cond_index (int): index of the condition in the sentence.
+      - cond_index_list [(int),(int)]: index of the condition in the sentence, where the first is the begin and second is the end.
       - sent_index (int): index of the sentence in the text.
       - result (list(dict(list(dict)))): a list of the SRL result, that will be searched.
    
    Returns:
-      - condition [(int),(int),(int),(int)]: list of integers: sentence index, adverbial sentence index, conditional index and the index of the end of condition.
+      - condition [(int),(int),(int),(int)]: list of integers: sentence index, adverbial sentence index, conditional index, index of the end of condition, conditional indicator index begin and conditional indicator end.
    """
-   cond_adv_sents_index = check_for_adverbial(cond_index,sent_index,result)
+   cond_adv_sents_index = check_for_adverbial(cond_index_list,sent_index,result)
+   cond_index = cond_index_list[1]
    if cond_adv_sents_index:
       #search further
       tags = [[t for t in result[sent_index]['verbs'][i]['tags'] if t == 'I-ARGM-ADV'] for i in cond_adv_sents_index]
@@ -458,7 +468,7 @@ def get_adverbial(cond_index,sent_index,result):
       adv_sent_index = cond_adv_sents_index[tags.index(best_tags_list)]
       condition_sent = " ".join(results[0][sent_index]['words'][cond_index:cond_index + len(best_tags_list)+1])
       description = results[0][sent_index]['verbs'][adv_sent_index]['description']
-      condition = [sent_index, adv_sent_index, cond_index, cond_index + len(best_tags_list)]
+      condition = [sent_index, adv_sent_index, cond_index + 1, cond_index + len(best_tags_list), cond_index_list[0],cond_index_list[1]]
       return condition
    else:
       return []
@@ -476,17 +486,18 @@ def get_adverbial(cond_index,sent_index,result):
 sent_index = 10
 cond_index = 0
 result = results[0]
-def get_condition_SRL_after_indicator(cond_index,sent_index,result):
+def get_condition_SRL_after_indicator(cond_index_list,sent_index,result):
    """Retrieve an conditional SRL that follows after the condition index.
    
    Args:
-      - cond_index (int): index of the condition in the sentence.
+      - cond_index_list [(int),(int)]: index of the condition in the sentence, where the first is the begin and second is the end.
       - sent_index (int): index of the sentence in the text.
       - result (list(dict(list(dict)))): a list of the SRL result, that will be searched.
    
    Returns:
-      - condition [(int),(int),(int),(int)]: list of integers: sentence index, condition sentence index, conditional index and the index of the end of condition.
+      - condition [(int),(int),(int),(int),(int),(int)]: list of integers: sentence index, condition sentence index, conditional index and the index of the end of condition, conditional indicator index begin and conditional indicator end.
    """
+   cond_index = cond_index_list[1]
    if cond_index +1 <= len(result[sent_index]['verbs'][0]['tags']):
       #not going out of bounds
       tags_next_cond = [x['tags'][cond_index+1] for x in result[sent_index]['verbs']]
@@ -506,12 +517,201 @@ def get_condition_SRL_after_indicator(cond_index,sent_index,result):
          end_index.append(counter)
       longest_index = max(end_index)
       srl_res_index = cond_next_sents_index[end_index.index(longest_index)]
-      return [sent_index,srl_res_index, cond_index, cond_index + longest_index]
+      return [sent_index,srl_res_index, cond_index + 1, cond_index + longest_index, cond_index_list[0],cond_index_list[1]]
    else:
       #The condition was at the end of the result sentences
       return []
 
-test = get_condition_SRL_after_indicator(0,6,result)
+# test = get_condition_SRL_after_indicator(0,6,result)
+
+
+def get_srl_within_range(srlIndex,searchIndex,after,srl_result_verbs):
+   """Get SRL tags from a specified range.
+   
+   Args:
+      - srlIndex (int): index of the result within the SRL results.
+      - searchIndex (int): index of where the search should begin or end.
+      - after (bool): states of the search should start after the searchIndex if True, else it will start before.
+      - srl_result_verbs (list(dict)): srl result starting with the verbs: e.g. result[10]['verbs']
+   
+   Returns:
+      - [firstIndex,endIndex] (list(int,int)): firstIndex indicates the start of a SRL set and endIndex the end.
+   """
+   # advSent = adverbial_data[1]
+   # endCond = adverbial_data[3]
+   #Check for action from point
+   firstIndex = -1 
+   endIndex = -1
+   searchItem = []
+   if after:
+      searchItem = srl_result_verbs[srlIndex]['tags'][searchIndex+1:]
+   else:
+      searchItem = srl_result_verbs[srlIndex]['tags'][:searchIndex]
+   # result[sent_index]['verbs'][srlIndex]['tags'][endCond+1:]
+   for index, item in enumerate(searchItem):
+      if item != 'O':
+         if firstIndex == -1:
+            firstIndex = index + searchIndex + 1 if after else index
+         endIndex = index
+   if endIndex != -1:
+      endIndex = endIndex + searchIndex + 1 if after else endIndex
+   return [firstIndex,endIndex]
+
+
+def get_action_srl_results(bArgSents,endCond,resultVerbs):
+   """Get the actions, using SRL and the last index of a condition.
+   
+   Args:
+      - bArgSents (list(list(int,int)): sentences with B-ARG in them, it contains the sentence index and SRL tag: [index, SRLTag]
+      - endCond (int): index of the end of the condition.
+      - resultVerbs (list(dict(list)): result for this specific sentence with the verbs. result[sent_index]['verbs']
+   
+   Returns:
+      - action (list(int,int)): a list with two integers, begin index and end index of the action. e.g. [beginIndex,endIndex]
+   """
+   actionResults = []
+   for item in bArgSents:
+      actionResults.append(get_srl_within_range(item[0],endCond,True, resultVerbs))
+   compareLengths = [sum(x) for x in actionResults]
+   item_index = compareLengths.index(max(compareLengths))
+   action = actionResults[item_index]
+   return action
+
+def orchestration_condition_sentence(sent_index,sen_cond_data,result):
+   """Combine the different functionts for condition extraction.
+   
+   Args:
+      - sent_index (int): The index of the sentence we are considering as part of the text.
+      - sen_cond_data (list): element containing the found condition indicators for the sentence.
+      - result (list(dict(list(dict)))): a list of the SRL result, that will be searched. 
+   Returns:
+      - TODO
+   Notes (TODO):
+      - what if we have multiple conditions? - for example two if statements?
+      - We assume that the condition with an action following is the most important
+   """
+   conditionActions = []
+   #loop through the cond index 
+   for conditionalIndicator in sen_cond_data:
+      # If we have a conditional indicator with multiple words.
+      condList = conditionalIndicator.split(' ')
+      condEndIndex = len(condList) -1
+      
+      sentWords = [x.lower() for x in result[sent_index]['words']]
+      try:
+         senBeginIndex = sentWords.index(condList[0])
+         senEndIndex = sentWords.index(condList[condEndIndex])
+      except:
+         print('Could not find condition in sentence, while it should be there. sen_index: {}'.format(sent_index))
+         senBeginIndex = -1
+         senEndIndex = -1
+      if senBeginIndex == -1 or senEndIndex == -1:
+         return
+      cond_index_list = [senBeginIndex,senEndIndex]
+      #Check for adverbial
+      adverbial_data = get_adverbial(cond_index_list, sent_index,result)
+      if adverbial_data:
+         advSent = adverbial_data[1]
+         beginCond = adverbial_data[2]
+         endCond = adverbial_data[3]
+         #Check for action from point
+         advActionData = get_srl_within_range(advSent,endCond,True,result[sent_index]['verbs'])
+         if advActionData[0] == -1:
+            #Check for action in front of index
+            condLength = cond_index_list[1] - cond_index_list[0] + 1
+            advActionData = get_srl_within_range(advSent,beginCond-condLength,False,result[sent_index]['verbs'])
+         action = [sent_index,advSent,advActionData[0],advActionData[1]]
+         return [adverbial_data,action]
+      #If not adverbial check for SRL condition
+      else:
+         srlData = get_condition_SRL_after_indicator(cond_index_list,sent_index,result)
+         if srlData:
+            #Check for action from end of condition
+            srlSent = srlData[1]
+            beginCond = srlData[2]
+            endCond = srlData[3]
+            #select possible sentences
+            #consider the one after the end and + 1 if there is a
+            nextCond = [x['tags'][endCond+1] for x in result[sent_index]['verbs']]
+            bArg = [[index,x] for index,x in enumerate(nextCond) if 'B-ARG' in x]
+            if bArg:
+               action = get_action_srl_results(bArg,endCond,result[sent_index]['verbs'])
+            else:
+               nextCond = [x['tags'][endCond+2] for x in result[sent_index]['verbs']]
+               bArg = [[index,x] for index,x in enumerate(nextCond) if 'B-ARG' in x]
+               if bArg:
+                  action = get_action_srl_results(bArg,endCond,result[sent_index]['verbs'])
+               else:
+                  #Action not found
+                  action = []
+            if not action:
+               #action is empty
+               # so need to check in front of the conditional marker.
+               print('need to check in front of the conditional marker, not yet implemented.')
+               pass
+            #Check for action in front of condition index
+            return [srlData,action]
+      #If there is another cond_index
+      return []
+
+def extract_condition_action_data(texts,results):
+   """Extract condition data for all the existing texts.
+   
+   Args:
+      - texts (list(str)): list of texts to process."""
+   outputCondition = []
+   resConditions = condExInt.indicator_condition_extraction_for_texts(texts)
+   for index, textConditions in enumerate(resConditions):
+      senIds = textConditions['sen_ids']
+      senData = textConditions['sen_id_data']
+      outputData = {}
+      for id in senIds:
+         condResult = orchestration_condition_sentence(id,senData[id],results[index])
+         outputData[id] = condResult
+      outputCondition.append(outputData)
+   return outputCondition
+
+# outputCondition = []
+# for index, item in enumerate(resConditons):
+#    sen_ids = item['sen_ids']
+#    sen_data = item['sen_id_data']
+#    outputData = {}
+#    for id in sen_ids:
+#       condWord = sen_data[id][0]
+#       sent = results[index][id]
+#       sentWords = [x.lower() for x in sent['words']]
+#       condIndex = sentWords.index(condWord)
+#       condResult = orchestration_condition_sentence(id,sen_data[id],results[index])
+#       outputData[id] = condResult
+#    outputCondition.append(outputData)
+
+
+def print_condition_action_data(conditionActionData,results):
+   """Print the data created by the orchestration_condition_sentence function.
+   
+   Args:
+      - conditionActionData (list(dict(list))): containing the index for the sentence, srlResult, start and end. Of a condition or action
+   
+   Returns:
+      - nothing.
+   """
+   for index,condActRes in enumerate(conditionActionData):
+      sentKeys = condActRes.keys()
+      for key in sentKeys:
+         ca = condActRes[key]
+         sent = results[index][key]['words']
+         if ca[0]:
+            conditionData = ca[0]
+            condition = " ".join(sent[conditionData[2]:conditionData[3]+1])
+            print("s{},c: {}".format(key,condition))
+         if ca[1]:
+            actionData = ca[1]
+            action = " ".join(sent[actionData[2]:actionData[3]+1])
+            print("s{},a: {}".format(key,action))
+
+#printing the data from the outputCondition
+
+
 # conditional indicator
 # done -> closest srl is Condition
 # done      -> if is part of adv -> adv is Condition
