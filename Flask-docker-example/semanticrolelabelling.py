@@ -1,4 +1,5 @@
 """Module to connect to api with AllenNLP running and transform the outcomes."""
+import enum
 import json
 import requests
 import nltk
@@ -23,6 +24,9 @@ class SemanticRoleLabelling(AllenNLPinterface):
 
    def get_triple(self,sentence, verb_tags):
       """Get a triple based on the sentence and the verb_tags.
+
+      Description:
+         Gets the triple using the ARG0, B-V and ARG1
 
       Args:
          - sentence(str): the target sentence
@@ -79,7 +83,7 @@ class SemanticRoleLabelling(AllenNLPinterface):
          print (agent + ' ' + verb + ' ' + obj)
 
    def print_all_triples(self, list_sents, output):
-      """Print all the triples.
+      """Print all the triples from SRL output.
 
       Args:
          - list_sents (list(dict)): a list of all the sentences in the input_object format.
@@ -154,3 +158,118 @@ class SemanticRoleLabelling(AllenNLPinterface):
             if tag in res['tags']:
                result.append(res['description'])
       return result
+   
+   def get_agent_verb_object_data(self,srlSentenceResult):
+      """For each result in the SRL results check if there is agent_verb_object combination and return it.
+      
+      Description:
+         For each result in the SRL results we check if there is a B-ARG in there. If that is 
+         the case we probably have an action. Then we return it as a double. We also return the 
+         begin and end index of the combination. Which can be used further down the line.
+      
+      Args:
+         - srlSentenceResult (dict): a dictionary with a SRL result for a sentence.
+
+      Returns:
+         - result (list): a list of a agent,verb,object combination with the following: 
+               agent, verb, object, beginIndex, endIndex
+      """
+      result = {'agent': [], 'verb': [], 'object': [], 'beginIndex': -1, 'endIndex': -1, 'ADV': []}
+      
+      beginIndex = -1
+      endIndex = -1
+      agent = [-1,-1]
+      verb = [-1,-1]
+      object = [-1,-1]
+      adv = [-1,-1]
+      for index,tag in enumerate(srlSentenceResult['tags']):
+         if tag != 'O':
+            if beginIndex == -1:
+               beginIndex = index
+            endIndex = index
+            if 'ARG0' in tag:
+               if agent[0] == -1:
+                  agent[0] = index
+               agent[1] = index
+            if 'B-V' in tag or 'I-V' in tag:
+               if verb[0] == -1:
+                  verb[0] = index
+               verb[1] = index
+            if 'ARG1' in tag:
+               if object[0] == -1:
+                  object[0] = index
+               object[1] = index
+            if 'ARGM-ADV' in tag:
+               if adv[0] == -1:
+                  adv[0] = index
+               adv[1] = index
+      result['agent'] = agent
+      result['verb'] = verb
+      result['object'] = object
+      result['beginIndex'] = beginIndex
+      result['endIndex'] = endIndex
+      result['ADV'] = adv
+      return result
+   
+   def get_avo_sentence(self,srlResult):
+      """Gets all agent, verb, object combinations for a sentence and defines logic to split them.
+      
+      Description:
+         Not all data should be considered. If there is overlap the combination needs 
+         to be split accordingly.
+      
+      Args:
+         - srlResult (dict): result from the semantic role labelling to extract data from.
+      
+      Returns:
+         - agent_verb_object (list): a list for all the agent_verb_objects for the given input.
+      """
+      avoResult = []
+      allResults = []
+      verbs = srlResult['verbs']
+      sent = srlResult['words']
+      for index, result in enumerate(verbs):
+         res = self.get_agent_verb_object_data(result)
+         allResults.append(res)
+      foundRanges = []
+      for index, res in enumerate(allResults):
+         checkRange = range(res['beginIndex'], res['endIndex'] + 1 )
+         intersects = []
+         ranges = [y['range'] for y in foundRanges]
+         for rIndex, r in enumerate(ranges):
+            if set(r).intersection(checkRange):
+               if len(checkRange) > len(r):
+                  foundRanges[rIndex]['range'] = range(res['beginIndex'],res['endIndex']+1)
+                  foundRanges[rIndex]['longest'] = index
+               foundRanges[rIndex]['items'].append(index)
+               intersects.append(r)
+         if not intersects:
+            foundRanges.append({'range': range(res['beginIndex'],res['endIndex']+1), 'longest': index, 'items': [index]})
+            #comparing the results - keep the ones we want.
+      return foundRanges
+
+
+# semrol = SemanticRoleLabelling()
+# inputS = semrol.create_input_object("A customer brings in a defective computer and the CRS checks the defect and hands out a repair cost calculation back. If the customer decides that the costs are acceptable, the process continues, otherwise she takes her computer home unrepaired. The ongoing repair consists of two activities, which are executed, in an arbitrary order. The first activity is to check and repair the hardware, whereas the second activity checks and configures the software. After each of these activities, the proper system functionality is tested. If an error is detected another arbitrary repair activity is executed, otherwise the repair is finished.")
+# output = []
+# if semrol.connect(inputS):
+#    output = semrol.result['output']
+# test = semrol.get_avo_sentence(output[0][1])
+# test2 = semrol.get_avo_sentence(output[0][3])
+# foundRanges = []
+# for index, res in enumerate(test):
+#    checkRange = range(res['beginIndex'],res['endIndex']+1)
+#    intersects = []
+#    ranges = [y['range'] for y in foundRanges]
+#    for rIndex, r in enumerate(ranges):
+#       if set(r).intersection(checkRange):
+#          if len(checkRange) > len(r):
+#             foundRanges[rIndex]['range'] = range(res['beginIndex'],res['endIndex']+1)
+#             foundRanges[rIndex]['longest'] = index
+#          foundRanges[rIndex]['items'].append(index)
+#          intersects.append(r)
+#    if not intersects:
+#       foundRanges.append({'range': range(res['beginIndex'],res['endIndex']+1), 'longest': index, 'items': [index]})
+
+
+   
