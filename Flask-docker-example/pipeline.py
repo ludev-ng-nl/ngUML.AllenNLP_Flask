@@ -273,9 +273,20 @@ test_text = "A customer brings in a defective computer and the CRS checks the de
 ppl = Pipeline()
 ppl.set_text(test_text)
 # test_2 = "A customer enters an order. The inventory manager allocates the stock."
-res = ppl.get_activity_from_text(test_text,"This is a trial")
-ppl.coreference()
+# res = ppl.get_activity_from_text(test_text,"This is a trial")
+# ppl.coreference()
 
 #Condition extraction
 cond_srl_results = [ppl.srl_output]
 condExInt = condExtr.ConditionExtractionInterface()
+cond_actions = condExInt.condition_extraction_for_texts(cond_srl_results)
+
+
+# output_condition = condExtr.extract_condition_action_data([test_text],cond_srl_results)
+
+newText = "A customer enters an order. If the order total is more than 10.000 euros, the order needs to be approved by the manager. If the order is not approved, it is cancelled. If the order is approved, or the total is less than 10.000, the inventory manager allocates the stock. If the stock level is too low, the product is reordered."
+
+srl = sem_rol.SemanticRoleLabelling()
+srl_result = srl.semrol_text(newText)
+condition_res = condExtr.extract_condition_action_data([newText],[srl_result])
+condExtr.print_condition_action_data(condition_res,[srl_result])
