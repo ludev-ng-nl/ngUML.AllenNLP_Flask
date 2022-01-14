@@ -694,7 +694,8 @@ def print_condition_action_data(conditionActionData,results):
    """Print the data created by the orchestration_condition_sentence function.
    
    Args:
-      - conditionActionData (list(dict(list))): containing the index for the sentence, srlResult, start and end. Of a condition or action
+      - conditionActionData (list(dict(list))): containing the index for the sentence, srlResult, start and end of a condition or action for each text.
+      - results (list(list(dict))): containing all the SRL results for each text.
    
    Returns:
       - nothing.
@@ -726,12 +727,3 @@ def print_condition_action_data(conditionActionData,results):
 #    -> possible another path for the condition.
 #
 # Note if we have another adv in the sentence -> possible the adv of the action.
-
-#printing for debugging
-# for index,condActRes in enumerate(outputCondition):
-#    sentKeys = condActRes.keys()
-#    for key in sentKeys:
-#       ca = condActRes[key]
-#       sent = condSRLResults[index][key]['words']
-#       print("ca: {}".format(ca))
-#       print("s: {}".format(sent))
