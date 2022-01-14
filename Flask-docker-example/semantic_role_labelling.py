@@ -21,6 +21,13 @@ class SemanticRoleLabelling(AllenNLPinterface):
       self.actors = []
       self.verbs = []
       self.objects = []
+   
+   def semrol_text(self,text):
+      """Semantic Role Labelling for a text."""
+      data = self.create_input_object(text)
+      if not self.connect(data):
+         return []
+      return self.result['output']
 
    def get_triple(self,sentence, verb_tags):
       """Get a triple based on the sentence and the verb_tags.
