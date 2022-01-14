@@ -6,7 +6,7 @@ import requests
 from nltk.tokenize import word_tokenize, sent_tokenize
 import activityInterface as actInt
 import conditionExtraction as condExtr
-import semanticrolelabelling as semrol
+import semantic_role_labelling as sem_rol
 import coreference as corefer
 
 class Pipeline():
@@ -58,7 +58,7 @@ class Pipeline():
          Performs semantic role labelling on the given text and extracts the triples.
             It also returns the agent, verb and object in variables.
       """
-      srl = semrol.SemanticRoleLabelling()
+      srl = sem_rol.SemanticRoleLabelling()
 
       input_sents = srl.create_input_object(self.text)
       srl_output = []
@@ -277,6 +277,5 @@ res = ppl.get_activity_from_text(test_text,"This is a trial")
 ppl.coreference()
 
 #Condition extraction
-condSRLResults = [ppl.srl_output]
+cond_srl_results = [ppl.srl_output]
 condExInt = condExtr.ConditionExtractionInterface()
-condActions = condExInt.condition_extraction_for_texts(condSRLResults)

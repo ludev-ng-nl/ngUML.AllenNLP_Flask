@@ -1,7 +1,7 @@
 import nltk
 from nltk import text
 from tqdm import tqdm
-import semanticrolelabelling as semrol
+import semantic_role_labelling as sem_rol
 from indicators import conditional_indicators as cond_ind
 import text_support as txt_sup
 
@@ -303,7 +303,8 @@ class ConditionExtractionInterface():
        pass
    
    def semrol_text(self,text):
-      srl = semrol.SemanticRoleLabelling()
+      """Semantic Role Labelling for a text."""
+      srl = sem_rol.SemanticRoleLabelling()
       data = srl.create_input_object(text)
       if not srl.connect(data):
          return []
