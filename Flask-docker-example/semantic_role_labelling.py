@@ -1,12 +1,7 @@
 """Module to connect to api with AllenNLP running and transform the outcomes."""
-import enum
-import json
-import requests
 import nltk
-import text_support as txt_sup
 from allen_nlp_interface import AllenNLPinterface
 from indicators import conditional_indicators as cond_ind
-from tqdm import tqdm
 
 
 nltk.download('punkt')
@@ -166,7 +161,7 @@ class SemanticRoleLabelling(AllenNLPinterface):
                result.append(res['description'])
       return result
    
-   def get_agent_verb_object_data(self,srlSentenceResult):
+   def get_agent_verb_object_data(self,srl_sentence_result: dict) -> dict:
       """For each result in the SRL results check if there is agent_verb_object combination and return it.
       
       Description:
@@ -175,25 +170,25 @@ class SemanticRoleLabelling(AllenNLPinterface):
          begin and end index of the combination. Which can be used further down the line.
       
       Args:
-         - srlSentenceResult (dict): a dictionary with a SRL result for a sentence.
+         - srl_sentence_result (dict): a dictionary with a SRL result for a sentence.
 
       Returns:
          - result (dict): a list of a agent,verb,object combination with the following: 
-               agent, verb, object, beginIndex, endIndex
+               agent, verb, object, begin_index, end_index
       """
-      result = {'agent': [], 'verb': [], 'object': [], 'beginIndex': -1, 'endIndex': -1, 'ADV': []}
+      result = {'agent': [], 'verb': [], 'object': [], 'begin_index': -1, 'end_index': -1, 'ADV': []}
       
-      beginIndex = -1
-      endIndex = -1
+      begin_index = -1
+      end_index = -1
       agent = [-1,-1]
       verb = [-1,-1]
       object = [-1,-1]
       adv = [-1,-1]
-      for index,tag in enumerate(srlSentenceResult['tags']):
+      for index,tag in enumerate(srl_sentence_result['tags']):
          if tag != 'O':
-            if beginIndex == -1:
-               beginIndex = index
-            endIndex = index
+            if begin_index == -1:
+               begin_index = index
+            end_index = index
             if 'ARG0' in tag:
                if agent[0] == -1:
                   agent[0] = index
@@ -213,12 +208,63 @@ class SemanticRoleLabelling(AllenNLPinterface):
       result['agent'] = agent
       result['verb'] = verb
       result['object'] = object
-      result['beginIndex'] = beginIndex
-      result['endIndex'] = endIndex
+      result['begin_index'] = begin_index
+      result['end_index'] = end_index
       result['ADV'] = adv
       return result
+
+   def process_adverbial(self,avo_data: dict) -> dict:
+      """Remove the adverbial data from the avo_data, by setting the begin or end index based on the agent,verb,object."""
+      if avo_data['begin_index'] == avo_data['ADV'][0]:
+         #adverb in start of sentence
+         b_indexes = []
+         for key in ["agent","verb","object"]:
+            if avo_data[key][0] != -1:
+               b_indexes.append(avo_data[key][0])
+         new_begin = min(b_indexes)
+         avo_data['begin_index'] = new_begin
+      else:
+         #adverb in end of the sent
+         e_indexes = []
+         for key in ["agent","verb","object"]:
+            if avo_data[key][1] != -1:
+               e_indexes.append(avo_data[key][1])
+         new_end = max(e_indexes)
+         avo_data['end_index'] = new_end
+      return avo_data
    
-   def get_avo_sentence(self,srlResult):
+   def combine_agent_verb_objects_in_sentence(self,agent_verb_object_results: list, ) -> list:
+      """Combine duplicate agent verb objects into one larger object.
+      
+      Description:
+         The different ranges are compared to find out if there is an intersection. If that is 
+         the case update the found_ranges and use it, otherwise add a new found range.
+
+      Args:
+         - agent_verb_object_results (list): Results for each sentence from get_agent_verb_object_data
+
+      Returns:
+         - found_ranges (list): of dictionary items with all the found ranges, longest sentence_index and 
+            which sentence_items belong to it.
+      """
+      found_ranges = []
+      for index, res in enumerate(agent_verb_object_results):
+         check_range = range(res['begin_index'], res['end_index'] + 1 )
+         intersects = []
+         ranges = [y['range'] for y in found_ranges]
+         for range_index, possible_range in enumerate(ranges):
+            if set(possible_range).intersection(check_range):
+               if len(check_range) > len(possible_range):
+                  found_ranges[range_index]['range'] = range(res['begin_index'],res['end_index']+1)
+                  found_ranges[range_index]['longest'] = index
+               found_ranges[range_index]['items'].append(index)
+               intersects.append(possible_range)
+         if not intersects:
+            found_ranges.append({'range': range(res['begin_index'],res['end_index']+1), 'longest': index, 'items': [index]})
+            #comparing the results - keep the ones we want.
+      return found_ranges
+
+   def get_avo_sentence(self,srl_result: dict) -> list:
       """Gets all agent, verb, object combinations for a sentence and defines logic to split them.
       
       Description:
@@ -226,67 +272,56 @@ class SemanticRoleLabelling(AllenNLPinterface):
          to be split accordingly.
       
       Args:
-         - srlResult (dict): result from the semantic role labelling to extract data from.
+         - srl_result (dict): result from the semantic role labelling to extract data from.
       
       Returns:
          - agent_verb_object (list): a list for all the agent_verb_objects for the given input.
       """
-      allResults = []
-      verbs = srlResult['verbs']
-      sent = srlResult['words']
-      for index, result in enumerate(verbs):
-         res = self.get_agent_verb_object_data(result)
+      agent_verb_object_results = []
+      verbs = srl_result['verbs']
+      for srl_verbs_result in verbs:
+         res = self.get_agent_verb_object_data(srl_verbs_result)
          if res['ADV'][0] != -1:
-            #found an Adverbial
-            #Check if it is the first part or the last part.
-            if res['beginIndex'] == res['ADV'][0]:
-               #adverb in start of sentence
-               b_indexes = []
-               for key in ["agent","verb","object"]:
-                  if res[key][0] != -1:
-                     b_indexes.append(res[key][0])
-               new_begin = min(b_indexes)
-               res['beginIndex'] = new_begin
-            else:
-               #adverb in end of the sent
-               e_indexes = []
-               for key in ["agent","verb","object"]:
-                  if res[key][1] != -1:
-                     e_indexes.append(res[key][1])
-               new_end = max(e_indexes)
-               res['endIndex'] = new_end
-         allResults.append(res)
-      foundRanges = []
-      for index, res in enumerate(allResults):
-         checkRange = range(res['beginIndex'], res['endIndex'] + 1 )
-         intersects = []
-         ranges = [y['range'] for y in foundRanges]
-         for rIndex, r in enumerate(ranges):
-            if set(r).intersection(checkRange):
-               if len(checkRange) > len(r):
-                  foundRanges[rIndex]['range'] = range(res['beginIndex'],res['endIndex']+1)
-                  foundRanges[rIndex]['longest'] = index
-               foundRanges[rIndex]['items'].append(index)
-               intersects.append(r)
-         if not intersects:
-            foundRanges.append({'range': range(res['beginIndex'],res['endIndex']+1), 'longest': index, 'items': [index]})
-            #comparing the results - keep the ones we want.
-      return [allResults,foundRanges]
+            res = self.process_adverbial(res)
+         agent_verb_object_results.append(res)
+      foundRanges = self.combine_agent_verb_objects_in_sentence(agent_verb_object_results)
+      return [agent_verb_object_results,foundRanges]
    
-   def print_avo_sent(self,avo_sent_result,srl_result):
+   def print_avo_sent(self, avo_sent_result, srl_result):
       """Print avo sentence based on the given information."""
       for res in avo_sent_result[1]:
-         begin = avo_sent_result[0][res['longest']]['beginIndex']
-         end = avo_sent_result[0][res['longest']]['endIndex']
+         begin = res['range'][0]
+         end = res['range'][len(res['range'])-1]
          print(" ".join(srl_result['words'][begin:end+1]))
+   
+   def get_avo_for_sentences(self,srl_results:list) -> list:
+      """
+      
+      Args:
+         - srl_results (list): semantic role labelling result for a text.
+      
+      Returns:
+         - avo_result (list): with elements for each result that contains agent, verb and object combinations with extra data.
+      """
+      avo_results = []
+      for sent_index, srl_result in enumerate(srl_results):
+         avo_res = self.get_avo_sentence(srl_result)
+         for avo_range in avo_res[1]:
+            avo_data = {'action_text': "", 'begin_index': -1, 'end_index': -1, 'sent_index': sent_index, 'avo_results':[], 'condition': False, 'action': False}
+            avo_data['begin_index'] = avo_range['range'][0]
+            avo_data['end_index'] = avo_range['range'][len(avo_range['range'])-1]
+            avo_data['action_text'] = srl_result['words'][avo_data['begin_index']:avo_data['end_index']+1]
+            avo_data['avo_results'] = [result for index,result in enumerate(avo_res[0]) if index in avo_range['items']]
+            avo_results.append(avo_data)
+      return avo_results
 
 
-#Demonstration
-test_text = "A customer brings in a defective computer and the CRS checks the defect and hands out a repair cost calculation back. If the customer decides that the costs are acceptable, the process continues, otherwise she takes her computer home unrepaired. The ongoing repair consists of two activities, which are executed, in an arbitrary order. The first activity is to check and repair the hardware, whereas the second activity checks and configures the software. After each of these activities, the proper system functionality is tested. If an error is detected another arbitrary repair activity is executed, otherwise the repair is finished."
-srl = SemanticRoleLabelling()
-srl_result = srl.semrol_text(test_text)
-avo_results = []
-for res in srl_result:
-   avo_res = srl.get_avo_sentence(res)
-   avo_results.append(avo_res)
-   srl.print_avo_sent(avo_res,res)  
+# #Demonstration
+# test_text = "A customer brings in a defective computer and the CRS checks the defect and hands out a repair cost calculation back. If the customer decides that the costs are acceptable, the process continues, otherwise she takes her computer home unrepaired. The ongoing repair consists of two activities, which are executed, in an arbitrary order. The first activity is to check and repair the hardware, whereas the second activity checks and configures the software. After each of these activities, the proper system functionality is tested. If an error is detected another arbitrary repair activity is executed, otherwise the repair is finished."
+# srl = SemanticRoleLabelling()
+# srl_result = srl.semrol_text(test_text)
+# avo_results = []
+# for res in srl_result:
+#    avo_res = srl.get_avo_sentence(res)
+#    avo_results.append(avo_res)
+#    srl.print_avo_sent(avo_res,res)  
