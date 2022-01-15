@@ -211,7 +211,7 @@ class ActivityInterface():
       node_ch["key"] = None
       return node_ch
 
-   def create_add_node(self, activity_id, node_type, args):
+   def create_add_node(self, activity_id: int, node_type: str, args: dict) -> str:
       """Create a node and add it to the list of nodes and changes"""
       if activity_id is None or not isinstance(activity_id, int):
          print("Problem with creation of action. Activity id not there or not integer")
@@ -220,6 +220,7 @@ class ActivityInterface():
       change = self.create_node_change(activity_id,node_type,args)
       self.nodes[change["nodeKey"]] = node
       self.changes.append(change)
+      return change["nodeKey"]
    
    def create_empty_connection(self):
       """Create empty connection."""
@@ -233,7 +234,7 @@ class ActivityInterface():
       connection["id"] = -1
       return connection
 
-   def create_connection(self,activity_id,from_id, to_id, args):
+   def create_connection(self,activity_id: int,from_id:str, to_id:str, args: dict) -> dict:
       """Create connection."""
       if activity_id is None or not isinstance(activity_id, int):
          print("Problem with creation of connection. Activity id not there or not integer")
