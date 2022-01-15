@@ -125,10 +125,10 @@ class Pipeline():
       act['type'] = 'retype-activity'
       self.actInt.changes.append(act)
       conc_triples = self.concat_triples()
-      self.actInt.create_add_node(act_id,'Initial',{'name': 'Initial'})
+      node_id = self.actInt.create_add_node(act_id,'Initial',{'name': 'Initial'})
       for triple in conc_triples:
-         self.actInt.create_add_node(act_id,'Action',{'name':triple})
-      self.actInt.create_add_node(act_id,'ActivityFinal',{'name':'Final'})
+         node_id = self.actInt.create_add_node(act_id,'Action',{'name':triple})
+      node_id = self.actInt.create_add_node(act_id,'ActivityFinal',{'name':'Final'})
       node_keys = [key for key in self.actInt.nodes]
       for index, item in enumerate(node_keys):
          from_node = item
@@ -244,14 +244,84 @@ class Pipeline():
                break
             index += 1
       self.coref_res = output
-      print(output)
+      # print(output)
       #transform output to use in comparable with output.
       #Currently output returns items that in the whole text. 
       # While the triple actors are returned per sentence.
       # so important to be able to combine this.
       #
       # walk through the coref and normal triple actors to combine.
-
+   
+   def tag_conditions_actions_in_avo_results(self, agent_verb_object_results: list, condition_actions: dict) -> list:
+      """Tag condition or action if that is in the avo_result
+      
+      Args:
+         - agent_verb_object_results (list): a list of all agent_verb_object results were extracted from the text.
+         - condition_actions (dict): a list of all condition and actions found in the text.
+         
+      Returns:
+         - agent_verb_object_results (list): with a tag of a condition or action.
+      """
+      condition_sent_keys = [sent_key for sent_key in condition_actions.keys()]
+      for avo_sent in agent_verb_object_results:
+         if avo_sent['sent_index'] in condition_sent_keys:
+            condition_action = condition_res[0][avo_sent['sent_index']]
+            condition = condition_action[0]
+            action = condition_action[1] if len(condition_action) > 1 else []
+            #Next step check if the condition exists in the avo_sent
+            avo_range = range(avo_sent['begin_index'],avo_sent['end_index']+1)
+            if condition:
+               condition_range = range(condition[2],condition[3]+1)
+               # if so add a mark on this avo set -> it is a condition
+               if set(condition_range).intersection(avo_range):
+                  avo_sent['condition'] = True
+            if action:
+               action_range = range(action[2],action[3]+1)
+               if set(action_range).intersection(avo_range):
+                  avo_sent['action'] = True
+      return agent_verb_object_results
+   
+   def create_activity_server(self,activity_name:str) -> int:
+      activity = self.actInt.create_activity(activity_name,{})
+      activity_id = self.actInt.create_activity_server(activity)
+      activity['type'] = 'retype-activity'
+      self.actInt.changes.append(activity)
+      return activity_id
+   
+   def create_model_using_avo(self,activity_name: str,agent_verb_object_results: list) -> None:
+      """Create activity model based on agent_verb_object results."""
+      self.actInt.clear_data()
+      activity_id = self.create_activity_server(activity_name)
+      node_id = self.actInt.create_add_node(activity_id, 'Initial',{'name': 'Initial'})
+      previous_node = node_id
+      guard = ""
+      # go through all the agent_verb_object_results
+      for avo in agent_verb_object_results:
+         # Something is going wrong in the definition of these things. 
+         # -> guard is not created and it is a action node instead of a connection guard
+         if avo['condition']:
+            #deal with a condition
+            decision = self.actInt.create_add_node(activity_id,'Decision',{'name': 'ConditionNode'})
+            self.actInt.create_connection(activity_id,previous_node,decision,{})
+            previous_node = decision
+            weight = " ".join(avo['action_text'])
+            act_final = self.actInt.create_add_node(activity_id,'ActivityFinal',{'name':'Final'})
+            self.actInt.create_connection(activity_id,decision,act_final,{'weight': '[else]'})
+         elif avo['action']:
+            #deal with action that follows a condition
+            action = self.actInt.create_add_node(activity_id,'Action',{'name': " ".join(avo['action_text'])})
+            self.actInt.create_connection(activity_id,previous_node,action,{'weight':weight})
+            previous_node = action
+         else:
+            # normal action.
+            action = self.actInt.create_add_node(activity_id,'Action',{'name': " ".join(avo['action_text'])})
+            self.actInt.create_connection(activity_id,previous_node,action,{})
+            previous_node = action
+      final = self.actInt.create_add_node(activity_id,'ActivityFinal',{'name':'Final'})
+      self.actInt.create_connection(activity_id,previous_node,final,{})
+      data = self.actInt.post_data()
+      return self.actInt.post_activity_data_to_server(self.actInt.post_url,data)
+      
 
 
 # next up do coreference to extract the references to the same actor.
@@ -290,3 +360,35 @@ srl = sem_rol.SemanticRoleLabelling()
 srl_result = srl.semrol_text(newText)
 condition_res = condExtr.extract_condition_action_data([newText],[srl_result])
 condExtr.print_condition_action_data(condition_res,[srl_result])
+
+avo_sents = srl.get_avo_for_sentences(srl_result)
+
+# condition_sent_keys = [sent_key for sent_key in condition_res[0].keys()]
+
+avo_sents = ppl.tag_conditions_actions_in_avo_results(avo_sents,condition_res[0])
+
+# for avo_sent in avo_sents:
+#    if avo_sent['sent_index'] in condition_sent_keys:
+#       condition_action = condition_res[0][avo_sent['sent_index']]
+#       condition = condition_action[0]
+#       action = condition_action[1] if len(condition_action) > 1 else []
+#       #Next step check if the condition exists in the avo_sent
+#       avo_range = range(avo_sent['begin_index'],avo_sent['end_index']+1)
+#       if condition:
+#          condition_range = range(condition[2],condition[3]+1)
+#          # if so add a mark on this avo set -> it is a condition
+#          if set(condition_range).intersection(avo_range):
+#             avo_sent['condition'] = True
+#       if action:
+#          action_range = range(action[2],action[3]+1)
+#          if set(action_range).intersection(avo_range):
+#             avo_sent['action'] = True
+      
+
+
+         # if action also in here -> mark as a condition following action.
+      # else do nothiing
+
+
+# Build a model based on the found avo_sents 
+# If it is a condition, put it in the text like this: [#cond]
