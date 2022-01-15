@@ -458,7 +458,7 @@ def get_adverbial(cond_index_list,sent_index,result):
       - result (list(dict(list(dict)))): a list of the SRL result, that will be searched.
    
    Returns:
-      - condition [(int),(int),(int),(int)]: list of integers: sentence index, adverbial sentence index, conditional index, index of the end of condition, conditional indicator index begin and conditional indicator end.
+      - condition [(int),(int),(int),(int),(int),(int)]: list of integers: sentence index, adverbial sentence index, conditional index, index of the end of condition, conditional indicator index begin and conditional indicator end.
    """
    cond_adv_sents_index = check_for_adverbial(cond_index_list,sent_index,result)
    cond_index = cond_index_list[1]
@@ -661,7 +661,10 @@ def extract_condition_action_data(texts,results):
    """Extract condition data for all the existing texts.
    
    Args:
-      - texts (list(str)): list of texts to process."""
+      - texts (list(str)): list of texts to process.
+   
+   Returns:
+      - outputCondition (list): for each text a dictionary with sen_index as key and a condition, action pair"""
    outputCondition = []
    condExInt = ConditionExtractionInterface()
    resConditions = condExInt.indicator_condition_extraction_for_texts(texts)
