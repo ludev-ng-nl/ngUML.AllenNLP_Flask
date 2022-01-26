@@ -241,7 +241,6 @@ class ActivityInterface():
          return {}
       key = str(uuid.uuid4())
       conn = self.create_empty_connection()
-      args = {}
       conn["from"] = from_id
       conn["to"] = to_id
       if "guard" in args:
