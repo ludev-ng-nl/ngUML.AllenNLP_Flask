@@ -3,11 +3,16 @@ import json
 import uuid
 from typing import Dict
 import requests
+import nltk
+from nltk import pos_tag
 from nltk.tokenize import word_tokenize, sent_tokenize
 import activityInterface as actInt
 import conditionExtraction as condExtr
 import semantic_role_labelling as sem_rol
 import coreference as corefer
+import text_support as text_sup
+
+nltk.download('averaged_perceptron_tagger')
 
 class Pipeline():
    """Pipeline class to combine all the different NLP modules."""
@@ -252,6 +257,14 @@ class Pipeline():
       #
       # walk through the coref and normal triple actors to combine.
    
+   def coreference_text(self, text):
+      coref = corefer.Coreference()
+      coref.connect(document=text)
+      coref.parse_data()
+      output = coref.find_all_personal_ant()
+      sen_len = self.get_list_sent_lengths()
+      return [output,sen_len]
+   
    def tag_conditions_actions_in_avo_results(self, agent_verb_object_results: list, condition_actions: dict) -> list:
       """Tag condition or action if that is in the avo_result
       
@@ -304,23 +317,68 @@ class Pipeline():
             decision = self.actInt.create_add_node(activity_id,'Decision',{'name': 'ConditionNode'})
             self.actInt.create_connection(activity_id,previous_node,decision,{})
             previous_node = decision
-            weight = " ".join(avo['action_text'])
+            guard = " ".join(avo['action_text'])
             act_final = self.actInt.create_add_node(activity_id,'ActivityFinal',{'name':'Final'})
-            self.actInt.create_connection(activity_id,decision,act_final,{'weight': '[else]'})
+            self.actInt.create_connection(activity_id,decision,act_final,{"guard": '[else]'})
          elif avo['action']:
             #deal with action that follows a condition
-            action = self.actInt.create_add_node(activity_id,'Action',{'name': " ".join(avo['action_text'])})
-            self.actInt.create_connection(activity_id,previous_node,action,{'weight':weight})
+            swimming_lane = ""
+            if avo['sw_lane']:
+               swimming_lane = " ".join(avo['sw_lane_text'])
+               swimming_lane = "[" + swimming_lane.rstrip() + "] "
+               sw_lane_begin = avo['sw_lane'][0]
+               sw_lane_end = avo['sw_lane'][1]
+               print('begin:{} end:{}'.format(sw_lane_begin,sw_lane_end))
+               print(avo['action_text'])
+               del avo['action_text'][sw_lane_begin:sw_lane_end+1]
+            node_name = swimming_lane + " ".join(avo['action_text'])
+            action = self.actInt.create_add_node(activity_id,'Action',{'name': node_name})
+            self.actInt.create_connection(activity_id,previous_node,action,{"guard": guard})
             previous_node = action
          else:
             # normal action.
-            action = self.actInt.create_add_node(activity_id,'Action',{'name': " ".join(avo['action_text'])})
+            swimming_lane = ""
+            if avo['sw_lane']:
+               swimming_lane = " ".join(avo['sw_lane_text'])
+               swimming_lane = "[" + swimming_lane.rstrip() + "] "
+               sw_lane_begin = avo['sw_lane'][0]
+               sw_lane_end = avo['sw_lane'][1]
+               print('begin:{} end:{}'.format(sw_lane_begin,sw_lane_end))
+               print(avo['action_text'])
+               del avo['action_text'][sw_lane_begin:sw_lane_end+1]
+            node_name = swimming_lane + " ".join(avo['action_text'])
+            action = self.actInt.create_add_node(activity_id,'Action',{'name': node_name})
             self.actInt.create_connection(activity_id,previous_node,action,{})
             previous_node = action
       final = self.actInt.create_add_node(activity_id,'ActivityFinal',{'name':'Final'})
       self.actInt.create_connection(activity_id,previous_node,final,{})
       data = self.actInt.post_data()
       return self.actInt.post_activity_data_to_server(self.actInt.post_url,data)
+   
+   def get_noun_chunk(self, text_array: list) -> list:
+      """Gets the nounchunk for a particular text."""
+      noun_pos = ['NN','NNS','NNPS','NNP']
+      text_pos = pos_tag(text_array)
+      noun_text = [result[0] for result in text_pos if result[1] in noun_pos]
+      return noun_text
+
+   def get_agents_and_tag_swimlanes_avo_sents(self, agent_verb_object_sentences: list) -> list:
+      """Gets all the agents from the agent_verb_object_sentences and addes the swimminglane keys and words."""
+      agents = []
+      for avo_sentence_index, avo_sentence in enumerate(agent_verb_object_sentences):
+         for avo_result_index, avo_result in enumerate(avo_sentence['avo_results']):
+            avo_sentence['sw_lane'] = []
+            if avo_result['agent'][0] != -1:
+               begin_index = avo_result['agent'][0] - avo_sentence['begin_index']
+               end_index = avo_result['agent'][1] - avo_sentence['begin_index']
+               avo_sentence['sw_lane'] = [begin_index,end_index]
+               avo_sentence['sw_lane_text'] = self.get_noun_chunk(avo_sentence['action_text'][begin_index:end_index+1])
+               # print("avo_sen{}: {}".format(avo_sentence_index, " ".join(avo_sentence['action_text'][begin_index:end_index + 1])))
+               agents.append({'sent_index': avo_sentence['sent_index'], 
+                              'agent_index': [avo_result['agent'][0], avo_result['agent'][1]],
+                              'avo_sent_index': avo_sentence_index,
+                              'avo_sent_result_index': avo_result_index})
+      return agents
       
 
 
@@ -367,28 +425,17 @@ avo_sents = srl.get_avo_for_sentences(srl_result)
 
 avo_sents = ppl.tag_conditions_actions_in_avo_results(avo_sents,condition_res[0])
 
-# for avo_sent in avo_sents:
-#    if avo_sent['sent_index'] in condition_sent_keys:
-#       condition_action = condition_res[0][avo_sent['sent_index']]
-#       condition = condition_action[0]
-#       action = condition_action[1] if len(condition_action) > 1 else []
-#       #Next step check if the condition exists in the avo_sent
-#       avo_range = range(avo_sent['begin_index'],avo_sent['end_index']+1)
-#       if condition:
-#          condition_range = range(condition[2],condition[3]+1)
-#          # if so add a mark on this avo set -> it is a condition
-#          if set(condition_range).intersection(avo_range):
-#             avo_sent['condition'] = True
-#       if action:
-#          action_range = range(action[2],action[3]+1)
-#          if set(action_range).intersection(avo_range):
-#             avo_sent['action'] = True
-      
 
 
-         # if action also in here -> mark as a condition following action.
-      # else do nothiing
-
-
-# Build a model based on the found avo_sents 
-# If it is a condition, put it in the text like this: [#cond]
+text_support = text_sup.TextSupport()
+texts = text_support.get_all_texts_activity('test-data')
+data = []
+for text_index, text in enumerate(texts):
+   srl = sem_rol.SemanticRoleLabelling()
+   srl_result = srl.semrol_text(text)
+   condition_res = condExtr.extract_condition_action_data([text],[srl_result])
+   avo_sents = srl.get_avo_for_sentences(srl_result)
+   avo_sents = ppl.tag_conditions_actions_in_avo_results(avo_sents,condition_res[0])
+   agents = ppl.get_agents_and_tag_swimlanes_avo_sents(avo_sents)
+   data.append([srl_result, condition_res[0],avo_sents,agents])
+   # print(ppl.create_model_using_avo("Test #{}".format(text_index),avo_sents))
