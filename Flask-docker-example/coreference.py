@@ -78,7 +78,7 @@ class Coreference:
       Note:
          Might have problems with longer words. As currently only scans for personal pronouns.
       """
-      pers_pronouns = ['i', 'we', 'he', 'she', 'you', 'they']
+      pers_pronouns = ['i', 'we', 'he', 'she', 'you', 'they', 'it']
       result = []
       for item in self.pronouns:
          if item[0].lower() in pers_pronouns:
