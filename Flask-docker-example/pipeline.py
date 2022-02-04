@@ -1,11 +1,11 @@
 """The pipeline script to combine all the different NLP modules."""
 import json
 import uuid
-from typing import Dict
 import requests
 import nltk
 from nltk import pos_tag
 from nltk.tokenize import word_tokenize, sent_tokenize
+from tqdm import tqdm
 import activityInterface as actInt
 import conditionExtraction as condExtr
 import semantic_role_labelling as sem_rol
@@ -198,14 +198,17 @@ class Pipeline():
       words = [word_tokenize(sen) for sen in sents]
       return words
 
-   def get_list_sent_lengths(self):
-      """Create list of lengths of words per sentence."""
-      sents = sent_tokenize(self.text)
-      words = [word_tokenize(sen) for sen in sents]
+   def get_list_sent_lengths(self,text:str) -> list:
+      """Create list of lengths of words per sentence.
+      
+      TODO replace sent_tokenize with spacy -> doc sents, as it is better in handling abbreviations.
+      """
+      sents = sent_tokenize(text)
+      sent_words = [word_tokenize(sen) for sen in sents]
       last = 0
       sen_lens = []
-      for sen in words:
-         length = last + len(sen)
+      for words in sent_words:
+         length = last + len(words)
          sen_lens.append(length)
          last = length
       return sen_lens
@@ -217,7 +220,7 @@ class Pipeline():
       coref.connect(document=self.text)
       coref.parse_data()
       output = coref.find_all_personal_ant()
-      sen_len = self.get_list_sent_lengths()
+      sen_len = self.get_list_sent_lengths(self.text)
       for pp in output:
          index = 0
          low_pp = pp[0][1][0]
@@ -256,15 +259,80 @@ class Pipeline():
       # so important to be able to combine this.
       #
       # walk through the coref and normal triple actors to combine.
+
+   def add_sent_index_coref(self,coref_output: list, text:str) -> list:
+      """Add the index of the sentence to the coref_output"""
+      sentence_lengths = self.get_list_sent_lengths(text)
+      for index in range(len(coref_output)):
+         antecedent_index = coref_output[index][0][1][0]
+         possible_sent_indices = [index for index, value in enumerate(sentence_lengths) if antecedent_index < value]
+         sentence_index = min(possible_sent_indices)
+         coref_output[index].append(sentence_index)
+      return coref_output
    
-   def coreference_text(self, text):
+   def coreference_text(self, text: str) -> list:
+      """Use coreference for a text and select all personal antecedents."""
       coref = corefer.Coreference()
       coref.connect(document=text)
       coref.parse_data()
       output = coref.find_all_personal_ant()
-      sen_len = self.get_list_sent_lengths()
-      return [output,sen_len]
+      coref_text_list = coref.output['document']
+      coref_text = " ".join(coref_text_list)
+      output = self.add_sent_index_coref(output,coref_text)
+      return [output,coref_text_list]
    
+   def order_avo_on_sent_index(self,agent_verb_object_results:list) -> dict:
+      """Order the agent_verb_object results per sentence index. To make it easy to access them."""
+      avo_result_per_sent = {}
+      for index, result in enumerate(agent_verb_object_results):
+         sent_index = result['sent_index']
+         result['avo_result_index'] = index
+         if sent_index in avo_result_per_sent.keys():
+            avo_result_per_sent[sent_index].append(result)
+         else:
+            avo_result_per_sent[sent_index] = [result]
+      return avo_result_per_sent
+
+   def replace_action_text_with_coref(self,agent_verb_object_results:list, reference_results: list, coref_text_list: list) -> list:
+      """Replace the action text in agent_verb_object with the found reference.
+
+      Args:
+         - agent_verb_object_results (list):
+         - reference_output (list): 
+         - coref_text_list (list): text returned from the coreference module in the form of a list.
+      
+      Returns:
+         - agent_verb_object (list): with the modified action_text
+      """
+      sentence_lenghts = self.get_list_sent_lengths(" ".join(coref_text_list))
+   
+      # sort avo into sets of sent_index
+      avo_sents_ordered = self.order_avo_on_sent_index(agent_verb_object_results)
+
+      for ref_result in reference_results:
+         #avo_result_sent_index -> should be sent index. As we use that in the avo-sents_ordered.
+         avo_result_sent_index = ref_result[2]
+         print("beginning with sent: {}".format(avo_result_sent_index))
+         possible_avos = avo_sents_ordered[avo_result_sent_index]
+         # find the corresponding avo_result. There are multiple possible avo_results -> select using the begin_index and end_index of the result
+         sen_begin_index = 0
+         if avo_result_sent_index > 0:
+            sen_begin_index = sentence_lenghts[avo_result_sent_index-1]
+         begin_index = ref_result[0][1][0] - sen_begin_index
+         avo_length = len(possible_avos)
+         for avo_index in range(avo_length):
+            avo_range = range(possible_avos[avo_index]['begin_index'],possible_avos[avo_index]['end_index']+1)
+            if begin_index in avo_range:
+               #found it! lets replace, first get words and indices
+               begin_index = begin_index - possible_avos[avo_index]['begin_index']
+               end_index = ref_result[0][1][1] - sen_begin_index - possible_avos[avo_index]['end_index']
+               new_action_word = word_tokenize(ref_result[1][0])
+               #need to push this back to the main
+               agent_verb_object_index = possible_avos[avo_index]['avo_result_index']
+               # replace the action text with the reference.
+               agent_verb_object_results[agent_verb_object_index]['action_text'][begin_index:end_index] = new_action_word
+      return agent_verb_object_results
+
    def tag_conditions_actions_in_avo_results(self, agent_verb_object_results: list, condition_actions: dict) -> list:
       """Tag condition or action if that is in the avo_result
       
@@ -405,37 +473,58 @@ ppl.set_text(test_text)
 # ppl.coreference()
 
 #Condition extraction
-cond_srl_results = [ppl.srl_output]
-condExInt = condExtr.ConditionExtractionInterface()
-cond_actions = condExInt.condition_extraction_for_texts(cond_srl_results)
+# cond_srl_results = [ppl.srl_output]
+# condExInt = condExtr.ConditionExtractionInterface()
+# cond_actions = condExInt.condition_extraction_for_texts(cond_srl_results)
 
 
-# output_condition = condExtr.extract_condition_action_data([test_text],cond_srl_results)
+# # output_condition = condExtr.extract_condition_action_data([test_text],cond_srl_results)
 
-newText = "A customer enters an order. If the order total is more than 10.000 euros, the order needs to be approved by the manager. If the order is not approved, it is cancelled. If the order is approved, or the total is less than 10.000, the inventory manager allocates the stock. If the stock level is too low, the product is reordered."
+# newText = "A customer enters an order. If the order total is more than 10.000 euros, the order needs to be approved by the manager. If the order is not approved, it is cancelled. If the order is approved, or the total is less than 10.000, the inventory manager allocates the stock. If the stock level is too low, the product is reordered."
 
-srl = sem_rol.SemanticRoleLabelling()
-srl_result = srl.semrol_text(newText)
-condition_res = condExtr.extract_condition_action_data([newText],[srl_result])
-condExtr.print_condition_action_data(condition_res,[srl_result])
+# srl = sem_rol.SemanticRoleLabelling()
+# srl_result = srl.semrol_text(newText)
+# condition_res = condExtr.extract_condition_action_data([newText],[srl_result])
+# condExtr.print_condition_action_data(condition_res,[srl_result])
 
-avo_sents = srl.get_avo_for_sentences(srl_result)
+# avo_sents = srl.get_avo_for_sentences(srl_result)
 
-# condition_sent_keys = [sent_key for sent_key in condition_res[0].keys()]
+# # condition_sent_keys = [sent_key for sent_key in condition_res[0].keys()]
 
-avo_sents = ppl.tag_conditions_actions_in_avo_results(avo_sents,condition_res[0])
+# avo_sents = ppl.tag_conditions_actions_in_avo_results(avo_sents,condition_res[0])
 
 
 
 text_support = text_sup.TextSupport()
 texts = text_support.get_all_texts_activity('test-data')
 data = []
-for text_index, text in enumerate(texts):
+for text_index, text in enumerate(tqdm(texts)):
    srl = sem_rol.SemanticRoleLabelling()
    srl_result = srl.semrol_text(text)
    condition_res = condExtr.extract_condition_action_data([text],[srl_result])
    avo_sents = srl.get_avo_for_sentences(srl_result)
    avo_sents = ppl.tag_conditions_actions_in_avo_results(avo_sents,condition_res[0])
+   coref = ppl.coreference_text(text)
+   avo_sents = ppl.replace_action_text_with_coref(avo_sents,coref[0],coref[1])
    agents = ppl.get_agents_and_tag_swimlanes_avo_sents(avo_sents)
    data.append([srl_result, condition_res[0],avo_sents,agents])
    # print(ppl.create_model_using_avo("Test #{}".format(text_index),avo_sents))
+
+# coref = ppl.coreference_text(texts[0])
+# test = ppl.replace_action_text_with_coref(data[0][2],coref[0],coref[1])
+
+
+# for index in range(len(coref[0])):
+#    antecedent_index = coref[0][index][0][1][0]
+#    print('antecedent_index: {}'.format(antecedent_index))
+#    possible_sent_indices = [index for index,value in enumerate(sentence_lengths) if antecedent_index < value]
+#    print('possible_sent_indices:')
+#    print(possible_sent_indices)
+#    sentence_index = min(possible_sent_indices)
+#    print('sentence_index: {}'.format(sentence_index))
+#    coref[0][index].append(sentence_index)
+
+# nlp = spacy.load('en_core_web_sm')
+# >>> doc = nlp(text)
+# >>> for sent in doc.sents:
+# ...    print(sent)
