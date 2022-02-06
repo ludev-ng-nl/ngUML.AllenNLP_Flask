@@ -1,6 +1,5 @@
 """The pipeline script to combine all the different NLP modules."""
 import json
-from tabnanny import check
 import uuid
 import requests
 import nltk
