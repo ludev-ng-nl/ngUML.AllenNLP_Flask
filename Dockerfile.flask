@@ -12,6 +12,7 @@ RUN pip install requests
 RUN pip install nltk
 RUN python -m nltk.downloader punkt
 RUN python -m nltk.downloader wordnet
+RUN python -m spacy download en_core_web_sm
 
 COPY Flask-docker-example/ .
 
