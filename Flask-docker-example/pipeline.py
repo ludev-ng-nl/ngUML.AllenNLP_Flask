@@ -1,8 +1,10 @@
 """The pipeline script to combine all the different NLP modules."""
 import json
+from tabnanny import check
 import uuid
 import requests
 import nltk
+import spacy
 from nltk import pos_tag
 from nltk.tokenize import word_tokenize, sent_tokenize
 from tqdm import tqdm
@@ -13,6 +15,7 @@ import coreference as corefer
 import text_support as text_sup
 
 nltk.download('averaged_perceptron_tagger')
+spacy_nlp = spacy.load('en_core_web_sm')
 
 class Pipeline():
    """Pipeline class to combine all the different NLP modules."""
@@ -199,11 +202,9 @@ class Pipeline():
       return words
 
    def get_list_sent_lengths(self,text:str) -> list:
-      """Create list of lengths of words per sentence.
-      
-      TODO replace sent_tokenize with spacy -> doc sents, as it is better in handling abbreviations.
-      """
-      sents = sent_tokenize(text)
+      """Create list of lengths of words per sentence."""
+      doc = spacy_nlp(text)
+      sents = [str(sent) for sent in doc.sents]
       sent_words = [word_tokenize(sen) for sen in sents]
       last = 0
       sen_lens = []
@@ -293,6 +294,29 @@ class Pipeline():
             avo_result_per_sent[sent_index] = [result]
       return avo_result_per_sent
 
+   def update_index_in_avo_results(self,avo_result: dict,begin_reference_sent_index: int,len_difference: int, update_begin: bool) -> None:
+      """Update the index in a agent_verb_object_result for the coreferencing."""
+      avo_result_keys = ['agent','verb','object','ADV']
+      #update begin and end 
+      if update_begin:
+         avo_result['begin_index'] += len_difference
+      avo_result['end_index'] += len_difference
+      # update all the avo_result_items using their keys
+      for avo_result_key in avo_result_keys:
+         if avo_result[avo_result_key][0] == -1:
+            # no index in here so we pass.
+            pass
+         else:
+            if begin_reference_sent_index == avo_result[avo_result_key][0]:
+               # the reference itself, we only add the difference to the end.
+               avo_result[avo_result_key][1] += len_difference
+            elif begin_reference_sent_index > avo_result[avo_result_key][0]:
+               # begin key is smaller, so we do nothing
+               pass
+            else:
+               avo_result[avo_result_key][0] += len_difference
+               avo_result[avo_result_key][1] += len_difference
+
    def replace_action_text_with_coref(self,agent_verb_object_results:list, reference_results: list, coref_text_list: list) -> list:
       """Replace the action text in agent_verb_object with the found reference.
 
@@ -306,31 +330,95 @@ class Pipeline():
       """
       sentence_lenghts = self.get_list_sent_lengths(" ".join(coref_text_list))
    
-      # sort avo into sets of sent_index
+      # sort avo into sets of sent_index -> such that we can search through them based on sentence index
       avo_sents_ordered = self.order_avo_on_sent_index(agent_verb_object_results)
-
+      previous_sent_id = -1
+      sum_len_difference = 0
       for ref_result in reference_results:
          #avo_result_sent_index -> should be sent index. As we use that in the avo-sents_ordered.
          avo_result_sent_index = ref_result[2]
          print("beginning with sent: {}".format(avo_result_sent_index))
          possible_avos = avo_sents_ordered[avo_result_sent_index]
          # find the corresponding avo_result. There are multiple possible avo_results -> select using the begin_index and end_index of the result
-         sen_begin_index = 0
+         sen_begin_text_index = 0
          if avo_result_sent_index > 0:
-            sen_begin_index = sentence_lenghts[avo_result_sent_index-1]
-         begin_index = ref_result[0][1][0] - sen_begin_index
+            sen_begin_text_index = sentence_lenghts[avo_result_sent_index-1]
+         begin_reference_sent_index = ref_result[0][1][0] - sen_begin_text_index
+         if previous_sent_id == possible_avos[0]['sent_index']:
+            # got the same sentence, so make use of the begin value of the lenghts.
+            begin_reference_sent_index += sum_len_difference
          avo_length = len(possible_avos)
          for avo_index in range(avo_length):
-            avo_range = range(possible_avos[avo_index]['begin_index'],possible_avos[avo_index]['end_index']+1)
-            if begin_index in avo_range:
+            avo_word_range = range(possible_avos[avo_index]['begin_index'],possible_avos[avo_index]['end_index']+1)
+            if begin_reference_sent_index in avo_word_range:
                #found it! lets replace, first get words and indices
-               begin_index = begin_index - possible_avos[avo_index]['begin_index']
-               end_index = ref_result[0][1][1] - sen_begin_index - possible_avos[avo_index]['end_index']
+               begin_reference_sent_index = begin_reference_sent_index - possible_avos[avo_index]['begin_index']
+               # end_index = ref_result[0][1][1] - sen_begin_text_index - possible_avos[avo_index]['end_index']
+               end_reference_sent_index = ref_result[0][1][1] - sen_begin_text_index - possible_avos[avo_index]['begin_index']
+               if previous_sent_id == possible_avos[0]['sent_index']:
+                  # got the same sentence, so make use of the begin value of the lenghts.
+                  end_reference_sent_index += sum_len_difference
                new_action_word = word_tokenize(ref_result[1][0])
+               len_new_word = len(new_action_word)
+               len_old_word = len(range(ref_result[0][1][0],ref_result[0][1][1]+1))
+               # Length difference if this is a negative number we substract otherwise we add it.
+               len_difference = len_new_word - len_old_word
+               #Problem is here  
+
+               # When you add a new word, it is needed that the different indices are updated with the length 
+               # of the new word. Such that it is possible to use the same logic again.
+               # Update is needed on:
+               #   begin_index, end_reference_sent_index and avo_results
+               # within -> avo_sents and the ordered version.
+               
+               # start with updating the current id
+               #  -> update agent_verb_object_results
+
+               #  -> update possible_avos -> repeat for all if in or before.
+               
+
+               # do the same for the other ones.
+               #
+               # First check if it is in the range
+
+               for avo_coref_index in range(avo_length):
+                  check_avo = possible_avos[avo_coref_index]
+                  if (avo_coref_index == avo_index or 
+                     begin_reference_sent_index in range(check_avo['begin_index'],check_avo['end_index']+1)):
+                     #It is the same sentence or the begin_reference is in this range
+                     check_avo['action_text'][begin_reference_sent_index:end_reference_sent_index+1] = new_action_word
+                     check_avo['end_index'] += len_difference
+                     #update avo_results
+                     for avo_result in check_avo['avo_results']:
+                        if begin_reference_sent_index in range(avo_result['begin_index'],avo_result['end_index']+1):
+                           self.update_index_in_avo_results(avo_result,begin_reference_sent_index,len_difference,False)
+                        else:
+                           self.update_index_in_avo_results(avo_result,begin_reference_sent_index,len_difference,True)
+                  else:
+                     if begin_reference_sent_index < check_avo['begin_index']:
+                        # Update all! even the begin index
+                        check_avo['begin_index'] += len_difference
+                        check_avo['end_index'] += len_difference
+                        #update avo_results
+                        for avo_result in check_avo['avo_results']:
+                              self.update_index_in_avo_results(avo_result,begin_reference_sent_index,len_difference,True)
+                     else:
+                        # The begin_reference_sent_index is larger than the begin and end index, so we do nothing.
+                        pass
+               
+               # As the different avo_results and begin indices got new numbers, the references also need to be updated.
+               if previous_sent_id != possible_avos[0]['sent_index']:
+                  previous_sent_id = possible_avos[0]['sent_index']
+                  sum_len_difference = len_difference
+               else:
+                  sum_len_difference += len_difference
+               
+
+
                #need to push this back to the main
-               agent_verb_object_index = possible_avos[avo_index]['avo_result_index']
-               # replace the action text with the reference.
-               agent_verb_object_results[agent_verb_object_index]['action_text'][begin_index:end_index] = new_action_word
+               # agent_verb_object_index = possible_avos[avo_index]['avo_result_index']
+               # # replace the action text with the reference.
+               # agent_verb_object_results[agent_verb_object_index]['action_text'][begin_reference_sent_index:end_reference_sent_index] = new_action_word
       return agent_verb_object_results
 
    def tag_conditions_actions_in_avo_results(self, agent_verb_object_results: list, condition_actions: dict) -> list:
@@ -346,7 +434,8 @@ class Pipeline():
       condition_sent_keys = [sent_key for sent_key in condition_actions.keys()]
       for avo_sent in agent_verb_object_results:
          if avo_sent['sent_index'] in condition_sent_keys:
-            condition_action = condition_res[0][avo_sent['sent_index']]
+            # condition_action = condition_res[0][avo_sent['sent_index']]
+            condition_action = condition_actions[avo_sent['sent_index']]
             condition = condition_action[0]
             action = condition_action[1] if len(condition_action) > 1 else []
             #Next step check if the condition exists in the avo_sent
@@ -447,84 +536,23 @@ class Pipeline():
                               'avo_sent_index': avo_sentence_index,
                               'avo_sent_result_index': avo_result_index})
       return agents
-      
-
-
-# next up do coreference to extract the references to the same actor.
 
 test_text = "A customer brings in a defective computer and the CRS checks the defect and hands out a repair cost calculation back. If the customer decides that the costs are acceptable, the process continues, otherwise she takes her computer home unrepaired. The ongoing repair consists of two activities, which are executed, in an arbitrary order. The first activity is to check and repair the hardware, whereas the second activity checks and configures the software. After each of these activities, the proper system functionality is tested. If an error is detected another arbitrary repair activity is executed, otherwise the repair is finished."
 
-# ppl = Pipeline()
-# >>> ppl.set_text(text)
-# >>> ppl.get_action_nodes()
-# Triples is empty please first run semantic_role_labelling.
-# >>> ppl.se
-# ppl.semantic_role_labelling(  ppl.set_text(
-# >>> ppl.se
-# ppl.semantic_role_labelling(  ppl.set_text(
-# >>> ppl.semantic_role_labelling()
-# >>> res = ppl.get_action_nodes()
-
-
-ppl = Pipeline()
-ppl.set_text(test_text)
-# test_2 = "A customer enters an order. The inventory manager allocates the stock."
-# res = ppl.get_activity_from_text(test_text,"This is a trial")
-# ppl.coreference()
-
-#Condition extraction
-# cond_srl_results = [ppl.srl_output]
-# condExInt = condExtr.ConditionExtractionInterface()
-# cond_actions = condExInt.condition_extraction_for_texts(cond_srl_results)
-
-
-# # output_condition = condExtr.extract_condition_action_data([test_text],cond_srl_results)
-
-# newText = "A customer enters an order. If the order total is more than 10.000 euros, the order needs to be approved by the manager. If the order is not approved, it is cancelled. If the order is approved, or the total is less than 10.000, the inventory manager allocates the stock. If the stock level is too low, the product is reordered."
-
-# srl = sem_rol.SemanticRoleLabelling()
-# srl_result = srl.semrol_text(newText)
-# condition_res = condExtr.extract_condition_action_data([newText],[srl_result])
-# condExtr.print_condition_action_data(condition_res,[srl_result])
-
-# avo_sents = srl.get_avo_for_sentences(srl_result)
-
-# # condition_sent_keys = [sent_key for sent_key in condition_res[0].keys()]
-
-# avo_sents = ppl.tag_conditions_actions_in_avo_results(avo_sents,condition_res[0])
-
-
-
-text_support = text_sup.TextSupport()
-texts = text_support.get_all_texts_activity('test-data')
-data = []
-for text_index, text in enumerate(tqdm(texts)):
-   srl = sem_rol.SemanticRoleLabelling()
-   srl_result = srl.semrol_text(text)
-   condition_res = condExtr.extract_condition_action_data([text],[srl_result])
-   avo_sents = srl.get_avo_for_sentences(srl_result)
-   avo_sents = ppl.tag_conditions_actions_in_avo_results(avo_sents,condition_res[0])
-   coref = ppl.coreference_text(text)
-   avo_sents = ppl.replace_action_text_with_coref(avo_sents,coref[0],coref[1])
-   agents = ppl.get_agents_and_tag_swimlanes_avo_sents(avo_sents)
-   data.append([srl_result, condition_res[0],avo_sents,agents])
-   # print(ppl.create_model_using_avo("Test #{}".format(text_index),avo_sents))
-
-# coref = ppl.coreference_text(texts[0])
-# test = ppl.replace_action_text_with_coref(data[0][2],coref[0],coref[1])
-
-
-# for index in range(len(coref[0])):
-#    antecedent_index = coref[0][index][0][1][0]
-#    print('antecedent_index: {}'.format(antecedent_index))
-#    possible_sent_indices = [index for index,value in enumerate(sentence_lengths) if antecedent_index < value]
-#    print('possible_sent_indices:')
-#    print(possible_sent_indices)
-#    sentence_index = min(possible_sent_indices)
-#    print('sentence_index: {}'.format(sentence_index))
-#    coref[0][index].append(sentence_index)
-
-# nlp = spacy.load('en_core_web_sm')
-# >>> doc = nlp(text)
-# >>> for sent in doc.sents:
-# ...    print(sent)
+def test_run_demo_data():
+   ppl = Pipeline()
+   text_support = text_sup.TextSupport()
+   texts = text_support.get_all_texts_activity('test-data')
+   data = []
+   for text_index, text in enumerate(tqdm(texts)):
+      srl = sem_rol.SemanticRoleLabelling()
+      srl_result = srl.semrol_text(text)
+      condition_res = condExtr.extract_condition_action_data([text],[srl_result])
+      avo_sents = srl.get_avo_for_sentences(srl_result)
+      avo_sents = ppl.tag_conditions_actions_in_avo_results(avo_sents,condition_res[0])
+      coref = ppl.coreference_text(text)
+      avo_sents = ppl.replace_action_text_with_coref(avo_sents,coref[0],coref[1])
+      agents = ppl.get_agents_and_tag_swimlanes_avo_sents(avo_sents)
+      data.append([srl_result, condition_res[0],avo_sents,agents,coref])
+      # print(ppl.create_model_using_avo("Test #{}".format(text_index),avo_sents))
+   return data
