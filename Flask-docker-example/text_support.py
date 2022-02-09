@@ -3,10 +3,19 @@ import os
 from nltk.tokenize import sent_tokenize
 
 class TextSupport:
+   """Class with several text related support functions.
+
+   Longer class information....TODO
+   Longer class information....
+
+   Attributes:
+      None
+   """
    def __init__(self) -> None:
       pass
 
    def get_text_from_file_activity(self,path):
+      """Get activity text from a file """
       with open(path) as f:
          lines = f.read()
       sents = sent_tokenize(lines)
