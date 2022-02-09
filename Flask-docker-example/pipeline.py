@@ -478,7 +478,7 @@ class Pipeline():
             decision = self.actInt.create_add_node(activity_id,'Decision',{'name': 'ConditionNode'})
             self.actInt.create_connection(activity_id,previous_node,decision,{})
             previous_node = decision
-            guard = " ".join(avo['action_text'])
+            guard = " ".join(avo['complete_sent'])
             act_final = self.actInt.create_add_node(activity_id,'ActivityFinal',{'name':'Final'})
             self.actInt.create_connection(activity_id,decision,act_final,{"guard": '[else]'})
          elif avo['action']:
@@ -487,12 +487,12 @@ class Pipeline():
             if avo['sw_lane']:
                swimming_lane = " ".join(avo['sw_lane_text'])
                swimming_lane = "[" + swimming_lane.rstrip() + "] "
-               sw_lane_begin = avo['sw_lane'][0]
-               sw_lane_end = avo['sw_lane'][1]
-               print('begin:{} end:{}'.format(sw_lane_begin,sw_lane_end))
-               print(avo['action_text'])
-               del avo['action_text'][sw_lane_begin:sw_lane_end+1]
-            node_name = swimming_lane + " ".join(avo['action_text'])
+               # sw_lane_begin = avo['sw_lane'][0]
+               # sw_lane_end = avo['sw_lane'][1]
+               # print('begin:{} end:{}'.format(sw_lane_begin,sw_lane_end))
+               # print(avo['action_text'])
+               # del avo['action_text'][sw_lane_begin:sw_lane_end+1]
+            node_name = swimming_lane + " ".join(avo['node_text'])
             action = self.actInt.create_add_node(activity_id,'Action',{'name': node_name})
             self.actInt.create_connection(activity_id,previous_node,action,{"guard": guard})
             previous_node = action
@@ -502,12 +502,12 @@ class Pipeline():
             if avo['sw_lane']:
                swimming_lane = " ".join(avo['sw_lane_text'])
                swimming_lane = "[" + swimming_lane.rstrip() + "] "
-               sw_lane_begin = avo['sw_lane'][0]
-               sw_lane_end = avo['sw_lane'][1]
-               print('begin:{} end:{}'.format(sw_lane_begin,sw_lane_end))
-               print(avo['action_text'])
-               del avo['action_text'][sw_lane_begin:sw_lane_end+1]
-            node_name = swimming_lane + " ".join(avo['action_text'])
+               # sw_lane_begin = avo['sw_lane'][0]
+               # sw_lane_end = avo['sw_lane'][1]
+               # print('begin:{} end:{}'.format(sw_lane_begin,sw_lane_end))
+               # print(avo['action_text'])
+               # del avo['action_text'][sw_lane_begin:sw_lane_end+1]
+            node_name = swimming_lane + " ".join(avo['node_text'])
             action = self.actInt.create_add_node(activity_id,'Action',{'name': node_name})
             self.actInt.create_connection(activity_id,previous_node,action,{})
             previous_node = action
@@ -533,6 +533,7 @@ class Pipeline():
                begin_index = avo_result['agent'][0] - avo_sentence['begin_index']
                end_index = avo_result['agent'][1] - avo_sentence['begin_index']
                avo_sentence['sw_lane'] = [begin_index,end_index]
+               # here we select the swim lane text. based on the first found agent TODO there might be better actors.
                avo_sentence['sw_lane_text'] = self.get_noun_chunk(avo_sentence['action_text'][begin_index:end_index+1])
                # print("avo_sen{}: {}".format(avo_sentence_index, " ".join(avo_sentence['action_text'][begin_index:end_index + 1])))
                agents.append({'sent_index': avo_sentence['sent_index'], 
@@ -575,7 +576,6 @@ def find_sent_begin_text_index(avo_result_index:int,sentence_lengths:list) -> in
    return sen_begin_text_index
 
 def replace_text_with_coref(avo_sents:list,reference_results:list,reference_text:list) -> list:
-   data = []
    ppl_coref = Pipeline()
    sentence_lengths = ppl_coref.get_list_sent_lengths(" ".join(reference_text))
    avo_sents_ordered = ppl_coref.order_avo_on_sent_index(avo_sents)
@@ -626,18 +626,174 @@ def replace_text_with_coref(avo_sents:list,reference_results:list,reference_text
                      ppl_coref.update_index_in_avo_results(avo_result,begin_reference_sent_index,len_difference,True)
             else:
                pass
-   return data
+   return avo_sents
 
-# replace_text_with_coref(avo_sents_ex2,,result_ex2[4][1])
-ppl = Pipeline()
+def order_coref_on_avo_index(avo_sents:list,coref_results:list,coref_text:list) -> dict:
+   """Order the coreference result per avo_sentence index and add begin and end index."""
+   result_per_avo_index = {}
+   ppl_coref = Pipeline()
+   sentence_lengths = ppl_coref.get_list_sent_lengths(" ".join(coref_text))
+   avo_sents_ordered = ppl_coref.order_avo_on_sent_index(avo_sents)
+   for reference_result in coref_results:
+      sent_index = reference_result[2]
+      sent_begin_index = find_sent_begin_text_index(sent_index,sentence_lengths)
+      begin_reference_sent_index = reference_result[0][1][0] - sent_begin_index
+      end_reference_sent_index = reference_result[0][1][1] - sent_begin_index
+      possible_avos = avo_sents_ordered[sent_index]
+      possible_ranges = [range(avo['begin_index'],avo['end_index']+1) for avo in possible_avos]
+      found_avo_indices = [index for index, test_range in enumerate(possible_ranges) if begin_reference_sent_index in test_range]
+      avo_sent_indices = [avo_sents.index(possible_avos[avo_id]) for avo_id in found_avo_indices]
+      for avo_sent_index in avo_sent_indices:
+         reference_result_item = reference_result[:]
+         reference_result_item[2] = [reference_result_item[2],begin_reference_sent_index,end_reference_sent_index]
+         if avo_sent_index in result_per_avo_index.keys():
+            result_per_avo_index[avo_sent_index].append(reference_result_item)
+         else:
+            result_per_avo_index[avo_sent_index] = [reference_result_item]
+   return result_per_avo_index
+
+def replace_partial_text_with_coref(avo_sen:list,coref_results:list,coref_text:list,result_per_avo_sent:dict,avo_results_index:int,input_text:list) -> list:
+   """Replace a piece of text with coref references.
+   
+      Assumption
+      - The given text where parts of the sentence are taken out have been substituted with three #'s
+   """
+   # select which avo_index we are talking about.
+   print('avo_results_index:{}'.format(avo_results_index))
+   # avo_sen = avo_sents[avo_results_index]
+   length_difference = 0
+   action_copy = input_text[:]
+   if avo_results_index in result_per_avo_sent.keys():
+      coref_result = result_per_avo_sent[avo_results_index]
+      sen_begin_index = avo_sen['begin_index']
+      replacements = [[ res[0][0], res[1][0],
+                        res[2][1]-sen_begin_index, res[2][2]-sen_begin_index] 
+                        for res in coref_result]
+      for replacement in replacements:
+         begin = replacement[2] + length_difference
+         end = replacement[3] + length_difference + 1
+         old_word = word_tokenize(replacement[0])
+         new_word = word_tokenize(replacement[1])
+         if action_copy[begin:end] == old_word:
+            # replace the word
+            action_copy[begin:end] = new_word
+            length_difference += (len(new_word) - len(old_word))
+         else:
+            # in some cases we moved the word to the swimminglane.
+            # print("reference not found in action_text, so we don't replace")
+            pass
+   else:
+      pass
+   return action_copy
+
+
+
+
+def replace_text_coref_before_printing(avo_sents:list,coref_results:list,coref_text:list) -> list:
+   """ OLD not in use.
+   Current implementation is focussed on replacing id's, but an easier approach is to only replace them 
+      when you will go printing. That way you don't need to do something with the id updating, which is error prone.
+      """
+   list_print_texts = []
+   #order the data of the coref_results into per avo_sentence
+   result_per_avo_sent = order_coref_on_avo_index(avo_sents,coref_results,coref_text)
+   # result_per_avo_sent = order_coref_on_avo_index(avo_sents,coref[0],coref[1])
+   #go through each avo_sentence' coref_results
+   for avo_index, avo_sen in enumerate(avo_sents):
+      length_difference = 0
+      if avo_index in result_per_avo_sent.keys():
+         coref_result = result_per_avo_sent[avo_index]
+         action_copy = avo_sen['action_text'][:]
+         sen_begin_index = avo_sen['begin_index']
+         replacements = [[ res[0][0], res[1][0],
+                           res[2][1]-sen_begin_index, res[2][2]-sen_begin_index] 
+                           for res in coref_result]
+         for replacement in replacements:
+            begin = replacement[2] + length_difference
+            end = replacement[3] + length_difference + 1
+            old_word = word_tokenize(replacement[0])
+            new_word = word_tokenize(replacement[1])
+            if action_copy[begin:end] == old_word:
+               # replace the word
+               action_copy[begin:end] = new_word
+               length_difference += (len(new_word) - len(old_word))
+            else:
+               # in some cases we moved the word to the swimminglane.
+               print("reference not found in action_text, so we don't replace")
+         list_print_texts.append(action_copy[:])
+      else:
+         list_print_texts.append(avo_sen['action_text'][:])
+      # replace action_text with the found results
+      # print_sent = [word for index, word in enumerate(action_copy) ]
+   return list_print_texts
+
+
+   # if it is a swimming_lane -> replace the swimminglane also.
+   
+
+def fill_swimming_lanes_and_coref_sents(avo_sents:list,coref_results:list,coref_text:list) -> list:
+   """Fill swimming lanes and add coreference to sentences"""
+   result_per_avo_sent = order_coref_on_avo_index(avo_sents,coref_results,coref_text)
+   for avo_index, avo_sent in enumerate(avo_sents):
+      action_text = avo_sent['action_text'][:]
+      if avo_sent['sw_lane']:
+         begin_sw = avo_sent['sw_lane'][0]
+         end_sw = avo_sent['sw_lane'][1] + 1
+         #change all words to be a ### if they are not the swimminglane. Such that only the words we need are used for coreferencing.
+         rest_of_sent = [item if index not in range(begin_sw,end_sw) else "###" 
+                           for index,item in enumerate(action_text)]
+         coref_sent_result = replace_partial_text_with_coref(avo_sent,coref_results,coref_text,result_per_avo_sent,
+                              avo_index,rest_of_sent)
+         # Keep the words that are not a ###
+         sentence = [word for word in coref_sent_result if word != "###"]
+
+         coref_complete_sent = replace_partial_text_with_coref(avo_sent,coref_results,coref_text,result_per_avo_sent,avo_index,action_text)
+         # replace all words other than the swimminglane with "###"
+         swimming_lane_in_sent = [item if index in range(begin_sw,end_sw) else "###" for index,item in enumerate(action_text)]
+         coref_swimming_lane_result = replace_partial_text_with_coref(avo_sent,coref_results,coref_text,result_per_avo_sent,avo_index,swimming_lane_in_sent)
+         swimming_lane = [word for word in coref_swimming_lane_result if word != "###"]
+         # assign the data back to the avo_sent result
+         avo_sent['node_text'] = sentence
+         avo_sent['complete_sent'] = coref_complete_sent
+         avo_sent['sw_lane_text'] = swimming_lane
+      else:
+         coref_sent_result = replace_partial_text_with_coref(avo_sent,coref_results,coref_text,result_per_avo_sent,avo_index,action_text)
+         avo_sent['node_text'] = coref_sent_result
+         avo_sent['complete_sent'] = coref_sent_result
+
 text_support = text_sup.TextSupport()
 texts = text_support.get_all_texts_activity('test-data')
 text = texts[2]
-srl = sem_rol.SemanticRoleLabelling()
-srl_result = srl.semrol_text(text)
-condition_res = condExtr.extract_condition_action_data([text],[srl_result])
-avo_sents = srl.get_avo_for_sentences(srl_result)
-avo_sents = ppl.tag_conditions_actions_in_avo_results(avo_sents,condition_res[0])
-coref = ppl.coreference_text(text)
-replace_text_with_coref(avo_sents,coref[0],coref[1])
-agents = ppl.get_agents_and_tag_swimlanes_avo_sents(avo_sents)
+def run_new_demo(text:str, name:str):
+   ppl = Pipeline()
+   srl = sem_rol.SemanticRoleLabelling()
+   srl_result = srl.semrol_text(text)
+   condition_res = condExtr.extract_condition_action_data([text],[srl_result])
+   avo_sents = srl.get_avo_for_sentences(srl_result)
+   avo_sents = ppl.tag_conditions_actions_in_avo_results(avo_sents,condition_res[0])
+   coref = ppl.coreference_text(text)
+   # avo_sents = replace_text_with_coref(avo_sents,coref[0],coref[1])
+   agents = ppl.get_agents_and_tag_swimlanes_avo_sents(avo_sents)
+   fill_swimming_lanes_and_coref_sents(avo_sents,coref[0],coref[1])
+   ppl.create_model_using_avo(name, avo_sents)
+
+
+# change only the swimminglane to ###
+# test data coref
+# avo_index = 15
+# avo_sent = avo_sents[avo_index]
+# coreference_result = coref[0]
+# coreference_word_list = coref[1]
+# if avo_sent['sw_lane']:
+#    action_text = avo_sent['action_text'][:]
+#    begin_sw = avo_sent['sw_lane'][0]
+#    end_sw = avo_sent['sw_lane'][1] + 1
+   
+#    #change all words to be a ### if they are not the swimminglane
+#    rest_of_sent = [item if index not in range(begin_sw,end_sw) else "###" for index,item in enumerate(action_text)]
+#    coref_sent_result = replace_partial_text_with_coref(avo_sent,coreference_result,coreference_word_list,avo_index,rest_of_sent)
+#    sentence = [word for word in coref_sent_result if word != "###"]
+
+#    swimming_lane_in_sent = [item if index in range(begin_sw,end_sw) else "###" for index,item in enumerate(action_text)]
+#    coref_swimming_lane_result = replace_partial_text_with_coref(avo_sent,coreference_result,coreference_word_list,avo_index,swimming_lane_in_sent)
+#    swimming_lane = [word for word in coref_swimming_lane_result if word != "###"]
