@@ -1,9 +1,4 @@
 """The pipeline script to combine all the different NLP modules."""
-import enum
-import json
-from operator import index
-import uuid
-import requests
 import nltk
 import spacy
 from nltk import pos_tag
@@ -193,7 +188,6 @@ class Pipeline():
       #add coref here? - coref changes the actors. So after that you can get the doubles.
       self.get_doubles()
       dat = self.create_data_from_doubles(activity_name)
-      
       return self.actInt.post_activity_data_to_server(self.actInt.post_url,dat)
 
    def get_list_of_text(self):
@@ -295,136 +289,6 @@ class Pipeline():
             avo_result_per_sent[sent_index] = [result]
       return avo_result_per_sent
 
-   def update_index_in_avo_results(self,avo_result: dict,begin_reference_sent_index: int,len_difference: int, update_begin: bool) -> None:
-      """Update the index in a agent_verb_object_result for the coreferencing."""
-      avo_result_keys = ['agent','verb','object','ADV']
-      #update begin and end 
-      if update_begin:
-         avo_result['begin_index'] += len_difference
-      avo_result['end_index'] += len_difference
-      # update all the avo_result_items using their keys
-      for avo_result_key in avo_result_keys:
-         if avo_result[avo_result_key][0] == -1:
-            # no index in here so we pass.
-            pass
-         else:
-            if begin_reference_sent_index == avo_result[avo_result_key][0]:
-               # the reference itself, we only add the difference to the end.
-               avo_result[avo_result_key][1] += len_difference
-            elif begin_reference_sent_index > avo_result[avo_result_key][0]:
-               # begin key is smaller, so we do nothing
-               pass
-            else:
-               avo_result[avo_result_key][0] += len_difference
-               avo_result[avo_result_key][1] += len_difference
-
-
-   def replace_action_text_with_coref(self,agent_verb_object_results:list, reference_results: list, coref_text_list: list) -> list:
-      """Replace the action text in agent_verb_object with the found reference.
-
-      Args:
-         - agent_verb_object_results (list):
-         - reference_output (list): 
-         - coref_text_list (list): text returned from the coreference module in the form of a list.
-      
-      Returns:
-         - agent_verb_object (list): with the modified action_text
-      """
-      sentence_lenghts = self.get_list_sent_lengths(" ".join(coref_text_list))
-   
-      # sort avo into sets of sent_index -> such that we can search through them based on sentence index
-      avo_sents_ordered = self.order_avo_on_sent_index(agent_verb_object_results)
-      previous_sent_id = -1
-      sum_len_difference = 0
-      for ref_result in reference_results:
-         #avo_result_sent_index -> should be sent index. As we use that in the avo-sents_ordered.
-         avo_result_sent_index = ref_result[2]
-         print("beginning with sent: {}".format(avo_result_sent_index))
-         possible_avos = avo_sents_ordered[avo_result_sent_index]
-         # find the corresponding avo_result. There are multiple possible avo_results -> select using the begin_index and end_index of the result
-         sen_begin_text_index = 0
-         if avo_result_sent_index > 0:
-            # maybe we need to add a -1 here?
-            sen_begin_text_index = sentence_lenghts[avo_result_sent_index-1]
-         begin_reference_sent_index = ref_result[0][1][0] - sen_begin_text_index
-         if previous_sent_id == possible_avos[0]['sent_index']:
-            # got the same sentence, so make use of the begin value of the lenghts.
-            begin_reference_sent_index += sum_len_difference
-         avo_length = len(possible_avos)
-         for avo_index in range(avo_length):
-            avo_word_range = range(possible_avos[avo_index]['begin_index'],possible_avos[avo_index]['end_index']+1)
-            if begin_reference_sent_index in avo_word_range:
-               #found it! lets replace, first get words and indices
-               begin_reference_sent_index = begin_reference_sent_index - possible_avos[avo_index]['begin_index']
-               # end_index = ref_result[0][1][1] - sen_begin_text_index - possible_avos[avo_index]['end_index']
-               end_reference_sent_index = ref_result[0][1][1] - sen_begin_text_index - possible_avos[avo_index]['begin_index']
-               if previous_sent_id == possible_avos[0]['sent_index']:
-                  # got the same sentence, so make use of the begin value of the lenghts.
-                  end_reference_sent_index += sum_len_difference
-               new_action_word = word_tokenize(ref_result[1][0])
-               len_new_word = len(new_action_word)
-               len_old_word = len(range(ref_result[0][1][0],ref_result[0][1][1]+1))
-               # Length difference if this is a negative number we substract otherwise we add it.
-               len_difference = len_new_word - len_old_word
-               #Problem is here  
-
-               # When you add a new word, it is needed that the different indices are updated with the length 
-               # of the new word. Such that it is possible to use the same logic again.
-               # Update is needed on:
-               #   begin_index, end_reference_sent_index and avo_results
-               # within -> avo_sents and the ordered version.
-               
-               # start with updating the current id
-               #  -> update agent_verb_object_results
-
-               #  -> update possible_avos -> repeat for all if in or before.
-               
-
-               # do the same for the other ones.
-               #
-               # First check if it is in the range
-
-               for avo_coref_index in range(avo_length):
-                  check_avo = possible_avos[avo_coref_index]
-                  if (avo_coref_index == avo_index or 
-                     begin_reference_sent_index in range(check_avo['begin_index'],check_avo['end_index']+1)):
-                     #It is the same sentence or the begin_reference is in this range
-                     print("replace '{}' on b:{}, e:{}, with w:'{}'".format(" ".join(check_avo['action_text'][begin_reference_sent_index:end_reference_sent_index+1]),begin_reference_sent_index,end_reference_sent_index + 1, " ".join(new_action_word)))
-                     check_avo['action_text'][begin_reference_sent_index:end_reference_sent_index+1] = new_action_word
-                     # check_avo['end_index'] += len_difference
-                     #update avo_results
-                     for avo_result in check_avo['avo_results']:
-                        if begin_reference_sent_index in range(avo_result['begin_index'],avo_result['end_index']+1):
-                           self.update_index_in_avo_results(avo_result,begin_reference_sent_index,len_difference,False)
-                        else:
-                           self.update_index_in_avo_results(avo_result,begin_reference_sent_index,len_difference,True)
-                  else:
-                     if begin_reference_sent_index < check_avo['begin_index']:
-                        # Update all! even the begin index
-                        # check_avo['begin_index'] += len_difference
-                        # check_avo['end_index'] += len_difference
-                        #update avo_results
-                        for avo_result in check_avo['avo_results']:
-                              self.update_index_in_avo_results(avo_result,begin_reference_sent_index,len_difference,True)
-                     else:
-                        # The begin_reference_sent_index is larger than the begin and end index, so we do nothing.
-                        pass
-               
-               # As the different avo_results and begin indices got new numbers, the references also need to be updated.
-               if previous_sent_id != possible_avos[0]['sent_index']:
-                  previous_sent_id = possible_avos[0]['sent_index']
-                  sum_len_difference = len_difference
-               else:
-                  sum_len_difference += len_difference
-               
-
-
-               #need to push this back to the main
-               # agent_verb_object_index = possible_avos[avo_index]['avo_result_index']
-               # # replace the action text with the reference.
-               # agent_verb_object_results[agent_verb_object_index]['action_text'][begin_reference_sent_index:end_reference_sent_index] = new_action_word
-      return agent_verb_object_results
-
    def tag_conditions_actions_in_avo_results(self, agent_verb_object_results: list, condition_actions: dict) -> list:
       """Tag condition or action if that is in the avo_result
       
@@ -456,6 +320,7 @@ class Pipeline():
       return agent_verb_object_results
    
    def create_activity_server(self,activity_name:str) -> int:
+      """Create an activity node on the server and return it's id."""
       activity = self.actInt.create_activity(activity_name,{})
       activity_id = self.actInt.create_activity_server(activity)
       activity['type'] = 'retype-activity'
@@ -487,11 +352,6 @@ class Pipeline():
             if avo['sw_lane']:
                swimming_lane = " ".join(avo['sw_lane_text'])
                swimming_lane = "[" + swimming_lane.rstrip() + "] "
-               # sw_lane_begin = avo['sw_lane'][0]
-               # sw_lane_end = avo['sw_lane'][1]
-               # print('begin:{} end:{}'.format(sw_lane_begin,sw_lane_end))
-               # print(avo['action_text'])
-               # del avo['action_text'][sw_lane_begin:sw_lane_end+1]
             node_name = swimming_lane + " ".join(avo['node_text'])
             action = self.actInt.create_add_node(activity_id,'Action',{'name': node_name})
             self.actInt.create_connection(activity_id,previous_node,action,{"guard": guard})
@@ -502,11 +362,6 @@ class Pipeline():
             if avo['sw_lane']:
                swimming_lane = " ".join(avo['sw_lane_text'])
                swimming_lane = "[" + swimming_lane.rstrip() + "] "
-               # sw_lane_begin = avo['sw_lane'][0]
-               # sw_lane_end = avo['sw_lane'][1]
-               # print('begin:{} end:{}'.format(sw_lane_begin,sw_lane_end))
-               # print(avo['action_text'])
-               # del avo['action_text'][sw_lane_begin:sw_lane_end+1]
             node_name = swimming_lane + " ".join(avo['node_text'])
             action = self.actInt.create_add_node(activity_id,'Action',{'name': node_name})
             self.actInt.create_connection(activity_id,previous_node,action,{})
@@ -550,7 +405,7 @@ class Pipeline():
       avo_sents = srl.get_avo_for_sentences(srl_result)
       avo_sents = self.tag_conditions_actions_in_avo_results(avo_sents,condition_res[0])
       coref = self.coreference_text(text)
-      avo_sents = self.replace_action_text_with_coref(avo_sents,coref[0],coref[1])
+      # avo_sents = self.replace_action_text_with_coref(avo_sents,coref[0],coref[1])
       agents = self.get_agents_and_tag_swimlanes_avo_sents(avo_sents)
       if post_data:
          print(self.create_model_using_avo(model_name,avo_sents))
@@ -559,6 +414,7 @@ class Pipeline():
 test_text = "A customer brings in a defective computer and the CRS checks the defect and hands out a repair cost calculation back. If the customer decides that the costs are acceptable, the process continues, otherwise she takes her computer home unrepaired. The ongoing repair consists of two activities, which are executed, in an arbitrary order. The first activity is to check and repair the hardware, whereas the second activity checks and configures the software. After each of these activities, the proper system functionality is tested. If an error is detected another arbitrary repair activity is executed, otherwise the repair is finished."
 
 def test_run_demo_data(post_model:bool)-> list:
+   """Run a demonstration of the different pipeline components."""
    ppl = Pipeline()
    text_support = text_sup.TextSupport()
    texts = text_support.get_all_texts_activity('test-data')
@@ -570,63 +426,11 @@ def test_run_demo_data(post_model:bool)-> list:
 
 
 def find_sent_begin_text_index(avo_result_index:int,sentence_lengths:list) -> int:
+   """Find the index for the begin of a sentence."""
    sen_begin_text_index = 0
    if avo_result_index > 0:
       sen_begin_text_index = sentence_lengths[avo_result_index-1]
    return sen_begin_text_index
-
-def replace_text_with_coref(avo_sents:list,reference_results:list,reference_text:list) -> list:
-   ppl_coref = Pipeline()
-   sentence_lengths = ppl_coref.get_list_sent_lengths(" ".join(reference_text))
-   avo_sents_ordered = ppl_coref.order_avo_on_sent_index(avo_sents)
-   avo_sents_length_additions = [0] * len(avo_sents_ordered)
-   for reference_result in reference_results:
-      avo_result_index = reference_result[2]
-      print("Reference processing sentence: {}".format(avo_result_index))
-      possible_avos = avo_sents_ordered[avo_result_index]
-      #set indices
-      sent_begin_index = find_sent_begin_text_index(avo_result_index,sentence_lengths)
-      begin_reference_sent_index = reference_result[0][1][0] - sent_begin_index + avo_sents_length_additions[avo_result_index]
-      end_reference_sent_index = reference_result[0][1][1] - sent_begin_index + avo_sents_length_additions[avo_result_index]
-      #select sents with ref_results
-      #use the avo['begin_index'] in combination with the diff length -> that way we can update them temporarily
-      curr_diff = avo_sents_length_additions[avo_result_index]
-      possible_ranges = [range(avo['begin_index'],avo['end_index']+1) for avo in possible_avos]
-      print(possible_ranges)
-      found_avo_indices = [index for index, test_range in enumerate(possible_ranges) if begin_reference_sent_index - avo_sents_length_additions[avo_result_index] in test_range]
-      new_word = word_tokenize(reference_result[1][0])
-      len_difference = 0
-
-      #Test it out let's print them
-      for found_avo_index in found_avo_indices:
-         avo = possible_avos[found_avo_index]
-         ref_begin_index = begin_reference_sent_index - avo['begin_index']
-         ref_end_index = end_reference_sent_index - avo['begin_index']
-         replace_word = avo['action_text'][ref_begin_index:ref_end_index+1]
-         print("replace '{}' with '{}'".format(" ".join(replace_word), " ".join(new_word)))
-         avo['action_text'][ref_begin_index:ref_end_index+1] = new_word
-         len_difference = len(new_word) - len(replace_word)
-         if len_difference != 0:
-            # update the indices in the sentence.
-            # avo['end_index'] += len_difference
-            avo_sents_length_additions[avo_result_index] += len_difference
-            for avo_result in avo['avo_results']:
-               if begin_reference_sent_index in range(avo_result['begin_index'],avo_result['end_index']+1):
-                  ppl_coref.update_index_in_avo_results(avo_result,begin_reference_sent_index,len_difference,False)
-               else:
-                  ppl_coref.update_index_in_avo_results(avo_result,begin_reference_sent_index,len_difference,True)
-      if len_difference != 0:
-         other_avo_indices = [id for id, res in enumerate(possible_avos) if id not in found_avo_indices]
-         for other_avo_index in other_avo_indices:
-            other_avo = possible_avos[other_avo_index]
-            if begin_reference_sent_index < other_avo['begin_index']:
-               # Update all! even the begin index
-               #update avo_results
-               for avo_result in other_avo['avo_results']:
-                     ppl_coref.update_index_in_avo_results(avo_result,begin_reference_sent_index,len_difference,True)
-            else:
-               pass
-   return avo_sents
 
 def order_coref_on_avo_index(avo_sents:list,coref_results:list,coref_text:list) -> dict:
    """Order the coreference result per avo_sentence index and add begin and end index."""
@@ -659,7 +463,7 @@ def replace_partial_text_with_coref(avo_sen:list,coref_results:list,coref_text:l
       - The given text where parts of the sentence are taken out have been substituted with three #'s
    """
    # select which avo_index we are talking about.
-   print('avo_results_index:{}'.format(avo_results_index))
+   print("avo_results_index:{}".format(avo_results_index))
    # avo_sen = avo_sents[avo_results_index]
    length_difference = 0
    action_copy = input_text[:]
@@ -727,10 +531,6 @@ def replace_text_coref_before_printing(avo_sents:list,coref_results:list,coref_t
       # print_sent = [word for index, word in enumerate(action_copy) ]
    return list_print_texts
 
-
-   # if it is a swimming_lane -> replace the swimminglane also.
-   
-
 def fill_swimming_lanes_and_coref_sents(avo_sents:list,coref_results:list,coref_text:list) -> list:
    """Fill swimming lanes and add coreference to sentences"""
    result_per_avo_sent = order_coref_on_avo_index(avo_sents,coref_results,coref_text)
@@ -762,9 +562,10 @@ def fill_swimming_lanes_and_coref_sents(avo_sents:list,coref_results:list,coref_
          avo_sent['complete_sent'] = coref_sent_result
 
 text_support = text_sup.TextSupport()
-texts = text_support.get_all_texts_activity('test-data')
-text = texts[2]
+input_texts = text_support.get_all_texts_activity('test-data')
+input_text_var = input_texts[2]
 def run_new_demo(text:str, name:str):
+   """Run demo for the pipeline."""
    ppl = Pipeline()
    srl = sem_rol.SemanticRoleLabelling()
    srl_result = srl.semrol_text(text)
@@ -776,24 +577,3 @@ def run_new_demo(text:str, name:str):
    agents = ppl.get_agents_and_tag_swimlanes_avo_sents(avo_sents)
    fill_swimming_lanes_and_coref_sents(avo_sents,coref[0],coref[1])
    ppl.create_model_using_avo(name, avo_sents)
-
-
-# change only the swimminglane to ###
-# test data coref
-# avo_index = 15
-# avo_sent = avo_sents[avo_index]
-# coreference_result = coref[0]
-# coreference_word_list = coref[1]
-# if avo_sent['sw_lane']:
-#    action_text = avo_sent['action_text'][:]
-#    begin_sw = avo_sent['sw_lane'][0]
-#    end_sw = avo_sent['sw_lane'][1] + 1
-   
-#    #change all words to be a ### if they are not the swimminglane
-#    rest_of_sent = [item if index not in range(begin_sw,end_sw) else "###" for index,item in enumerate(action_text)]
-#    coref_sent_result = replace_partial_text_with_coref(avo_sent,coreference_result,coreference_word_list,avo_index,rest_of_sent)
-#    sentence = [word for word in coref_sent_result if word != "###"]
-
-#    swimming_lane_in_sent = [item if index in range(begin_sw,end_sw) else "###" for index,item in enumerate(action_text)]
-#    coref_swimming_lane_result = replace_partial_text_with_coref(avo_sent,coreference_result,coreference_word_list,avo_index,swimming_lane_in_sent)
-#    swimming_lane = [word for word in coref_swimming_lane_result if word != "###"]
