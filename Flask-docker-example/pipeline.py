@@ -276,18 +276,6 @@ class Pipeline():
       coref_text = " ".join(coref_text_list)
       output = self.add_sent_index_coref(output,coref_text)
       return [output,coref_text_list]
-   
-   # def order_avo_on_sent_index(self,agent_verb_object_results:list) -> dict:
-   #    """Order the agent_verb_object results per sentence index. To make it easy to access them."""
-   #    avo_result_per_sent = {}
-   #    for index, result in enumerate(agent_verb_object_results):
-   #       sent_index = result['sent_index']
-   #       result['avo_result_index'] = index
-   #       if sent_index in avo_result_per_sent.keys():
-   #          avo_result_per_sent[sent_index].append(result)
-   #       else:
-   #          avo_result_per_sent[sent_index] = [result]
-   #    return avo_result_per_sent
 
    def tag_conditions_actions_in_avo_results(self, agent_verb_object_results: list, condition_actions: dict) -> list:
       """Tag condition or action if that is in the avo_result
