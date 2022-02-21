@@ -378,7 +378,8 @@ class Pipeline():
                avo_sentence['sw_lane'] = [begin_index,end_index]
                # here we select the swim lane text. based on the first found agent TODO there might be better actors.
                avo_sentence['sw_lane_text'] = self.get_noun_chunk(avo_sentence['action_text'][begin_index:end_index+1])
-               # print("avo_sen{}: {}".format(avo_sentence_index, " ".join(avo_sentence['action_text'][begin_index:end_index + 1])))
+               # print("avo_sen{}: {}".format(avo_sentence_index, 
+               # " ".join(avo_sentence['action_text'][begin_index:end_index + 1])))
                agents.append({'sent_index': avo_sentence['sent_index'], 
                               'agent_index': [avo_result['agent'][0], avo_result['agent'][1]],
                               'avo_sent_index': avo_sentence_index,
@@ -399,13 +400,21 @@ class Pipeline():
          print(self.create_model_using_avo(model_name,avo_sents))
       return [srl_result, condition_res[0],avo_sents,agents,coref]
 
-test_text = "A customer brings in a defective computer and the CRS checks the defect and hands out a repair cost calculation back. If the customer decides that the costs are acceptable, the process continues, otherwise she takes her computer home unrepaired. The ongoing repair consists of two activities, which are executed, in an arbitrary order. The first activity is to check and repair the hardware, whereas the second activity checks and configures the software. After each of these activities, the proper system functionality is tested. If an error is detected another arbitrary repair activity is executed, otherwise the repair is finished."
+TEST_TEXT = ('A customer brings in a defective computer and the CRS checks the defect '
+            'and hands out a repair cost calculation back. If the customer decides that '
+            'the costs are acceptable, the process continues, otherwise she takes her '
+            'computer home unrepaired. The ongoing repair consists of two activities, '
+            'which are executed, in an arbitrary order. The first activity is to check '
+            'and repair the hardware, whereas the second activity checks and configures '
+            'the software. After each of these activities, the proper system '
+            'functionality is tested. If an error is detected another arbitrary repair '
+            'activity is executed, otherwise the repair is finished.')
 
 def test_run_demo_data(post_model:bool)-> list:
    """Run a demonstration of the different pipeline components."""
    ppl = Pipeline()
-   text_support = text_sup.TextSupport()
-   texts = text_support.get_all_texts_activity('test-data')
+   text_sup_mod = text_sup.TextSupport()
+   texts = text_sup_mod.get_all_texts_activity('test-data')
    data = []
    for text_index, text in enumerate(tqdm(texts)):
       result = ppl.run_demo_for_text(text, post_model, "Test run {}".format(text_index))
@@ -429,3 +438,4 @@ def run_new_demo(text:str, name:str):
    cor = corefer.Coreference()
    cor.fill_swimming_lanes_and_coref_sents(avo_sents,coref[0],coref[1])
    ppl.create_model_using_avo(name, avo_sents)
+   return [avo_sents,coref,agents]

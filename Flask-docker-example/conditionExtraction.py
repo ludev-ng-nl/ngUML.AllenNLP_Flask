@@ -373,8 +373,8 @@ class ConditionExtractionInterface():
          condActions.append(res)
       return condActions
    
-   def indicator_condition_extraction_for_texts(self,texts):
-      """Do condition extraction for the SRL results from several texts."""
+   def select_sentences_with_condition_keywords_for_texts(self,texts:list) -> list:
+      """Select sentences with condition keywords for several texts."""
       condExtr = ConditionExtraction()
       results = []
       # sents = condExtr.get_sents_with_conditional_indicators(results)
@@ -402,7 +402,7 @@ class ConditionExtractionInterface():
 # results = condExInt.srl_for_all_texts(texts)
 # condActions = condExInt.condition_extraction_for_texts(results)
 # condExInt.print_condition_actions(condActions)
-# resConditons = condExInt.indicator_condition_extraction_for_texts(texts)
+# resConditons = condExInt.select_sentences_with_condition_keywords_for_texts(texts)
 
 # Used the part above to setup for texting
 # also check Condition analysis.xlsx in the misc folder of the google drive.
@@ -667,7 +667,7 @@ def extract_condition_action_data(texts,results):
       - outputCondition (list): for each text a dictionary with sen_index as key and a condition, action pair"""
    outputCondition = []
    condExInt = ConditionExtractionInterface()
-   resConditions = condExInt.indicator_condition_extraction_for_texts(texts)
+   resConditions = condExInt.select_sentences_with_condition_keywords_for_texts(texts)
    for index, textConditions in enumerate(resConditions):
       senIds = textConditions['sen_ids']
       senData = textConditions['sen_id_data']
