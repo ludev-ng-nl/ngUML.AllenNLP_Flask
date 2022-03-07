@@ -586,7 +586,9 @@ def orchestration_condition_sentence(sent_index,sen_cond_data,result):
       - sen_cond_data (list): element containing the found condition indicators for the sentence.
       - result (list(dict(list(dict)))): a list of the SRL result, that will be searched. 
    Returns:
-      - TODO
+      - condition,action:
+         - condition [(int),(int),(int),(int),(int),(int)]: list of integers: sentence index, result sentence index, conditional index, index of the end of condition, conditional indicator index begin and conditional indicator end.
+         - action [(int),(int),(int),(int)]: list of integers: sentence index, result sentence index, action begin index, index of the end of action.
    Notes (TODO):
       - what if we have multiple conditions? - for example two if statements?
       - We assume that the condition with an action following is the most important
