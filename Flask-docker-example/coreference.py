@@ -1,6 +1,7 @@
 """Module to connect to AllenNLP library and use Coreference implementation"""
 import json
 import requests
+import numpy as np
 from nltk.tokenize import word_tokenize
 import common_methods as cm
 
@@ -203,6 +204,82 @@ class Coreference:
                                                                      avo_index,action_text)
             avo_sent['node_text'] = coref_sent_result
             avo_sent['complete_sent'] = coref_sent_result
+
+   def organise_cluster_per_sentence_and_coref_id(self,clusters:list,sentence_lengths:list) -> dict:
+      """Organise all the clusters per sentence id and coref id."""
+      np_sen_lens = np.array(sentence_lengths)
+      cluster_per_sent = {}
+      for cluster_id, cluster in enumerate(clusters):
+         for span in cluster:
+            sentence_index = np.argmax(np_sen_lens > span[0])
+            if sentence_index in cluster_per_sent:
+               sent_cluster_dict = cluster_per_sent[sentence_index] 
+               if cluster_id in sent_cluster_dict:
+                  sent_cluster_dict[cluster_id].append(span)
+               else:
+                  sent_cluster_dict[cluster_id] = [span]
+            else:
+               cluster_per_sent[sentence_index] = {}
+               cluster_per_sent[sentence_index][cluster_id] = [span]
+      return cluster_per_sent
+   
+   def organise_cluster_per_sentence_span(self,clusters:list,sentence_lengths:list) -> dict:
+      """Organise all the clusters per sentence id and coref id."""
+      np_sen_lens = np.array(sentence_lengths)
+      cluster_per_sent = {}
+      for cluster_id, cluster in enumerate(clusters):
+         for span in cluster:
+            sentence_index = np.argmax(np_sen_lens > span[0])
+            if sentence_index in cluster_per_sent:
+               sent_cluster_dict = cluster_per_sent[sentence_index] 
+               if sent_cluster_dict:
+                  sent_cluster_dict.append([span,cluster_id])
+               else:
+                  sent_cluster_dict = [[span,cluster_id]]
+            else:
+               cluster_per_sent[sentence_index] = [[span,cluster_id]]
+      return cluster_per_sent
+   
+   def tag_clusters_avo_sents(self,avo_sents:list,coref_document:list,clusters:list) -> None:
+      """Tag all the coref clusters in avo_sents.
+      
+      Args:
+         - avo_sents(list): list of all sentences we are considering.
+         - coref_document(list): list of all words in the document as a result from the Coreference.
+         - clusters (list): List of clusters with spans representing the clusters.
+
+      Returns:
+         - None, but we change the values in avo_sents.
+      """
+      com_method = cm.CommonFunctions()
+      sentence_lengths = com_method.get_list_sent_lengths(" ".join(coref_document))
+      # Step one organise all clusters into a dict per sent
+      cluster_per_sent = self.organise_cluster_per_sentence_span(clusters,sentence_lengths)
+      # Check for each sent if the clusters belong to it.
+      for avo_sent in avo_sents:
+         sent_index = avo_sent['sent_index']
+         if sent_index in cluster_per_sent:
+            sent_cluster = cluster_per_sent[sent_index]
+            start = 0 if sent_index == 0 else sentence_lengths[sent_index-1]
+            begin_index = avo_sent['begin_index'] + start
+            end_index = avo_sent['end_index'] + start
+            for cluster in sent_cluster:
+               cluster_start = cluster[0][0]
+               if cluster_start in range(begin_index,end_index+1):
+                  if 'coref_ids' in avo_sent:
+                     avo_sent['coref_ids'].append(cluster[1])
+                  else:
+                     avo_sent['coref_ids'] = [cluster[1]]
+                  coref_span = [cluster[0][0] - start, cluster[0][1] - start]
+                  if 'coref_spans' in avo_sent:
+                     if cluster[1] in avo_sent['coref_spans']:
+                        avo_sent['coref_spans'][cluster[1]].append(coref_span)
+                     else:
+                        avo_sent['coref_spans'][cluster[1]] = [coref_span]
+                  else:
+                     avo_sent['coref_spans'] = {cluster[1]: [coref_span]}
+         else:
+            pass      
 
 #demo
 # coref = Coreference()

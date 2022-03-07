@@ -275,7 +275,8 @@ class Pipeline():
       coref_text_list = coref.output['document']
       coref_text = " ".join(coref_text_list)
       output = self.add_sent_index_coref(output,coref_text)
-      return [output,coref_text_list]
+      clusters = coref.output['clusters']
+      return [output,coref_text_list,clusters]
 
    def tag_conditions_actions_in_avo_results(self, agent_verb_object_results: list, condition_actions: dict) -> list:
       """Tag condition or action if that is in the avo_result
@@ -437,5 +438,18 @@ def run_new_demo(text:str, name:str):
    agents = ppl.get_agents_and_tag_swimlanes_avo_sents(avo_sents)
    cor = corefer.Coreference()
    cor.fill_swimming_lanes_and_coref_sents(avo_sents,coref[0],coref[1])
+   cor.tag_clusters_avo_sents(avo_sents,coref[1],coref[2])
    ppl.create_model_using_avo(name, avo_sents)
    return [avo_sents,coref,agents]
+
+# ppl = Pipeline()
+# srl = sem_rol.SemanticRoleLabelling()
+# srl_result = srl.semrol_text(input_texts[0])
+# condition_res = condExtr.extract_condition_action_data([input_texts[0]],[srl_result])
+# avo_sents = srl.get_avo_for_sentences(srl_result)
+# avo_sents = ppl.tag_conditions_actions_in_avo_results(avo_sents,condition_res[0])
+# coref = ppl.coreference_text(input_texts[0])
+# agents = ppl.get_agents_and_tag_swimlanes_avo_sents(avo_sents)
+# cor = corefer.Coreference()
+# cor.fill_swimming_lanes_and_coref_sents(avo_sents,coref[0],coref[1])
+# cor.tag_clusters_avo_sents(avo_sents,coref[1],coref[2])
