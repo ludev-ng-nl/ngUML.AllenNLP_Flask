@@ -316,6 +316,40 @@ class Pipeline():
       self.actInt.changes.append(activity)
       return activity_id
    
+   def create_condition(self,avo: dict, activity_id: int, previous_node: str ) -> list:
+      """Create a conditional node and return node id and guard."""
+      decision = self.actInt.create_add_node(activity_id,'Decision',{'name': 'ConditionNode'})
+      self.actInt.create_connection(activity_id,previous_node,decision,{})
+      previous_node = decision
+      guard = " ".join(avo['complete_sent'])
+      act_final = self.actInt.create_add_node(activity_id,'ActivityFinal',{'name':'Final'})
+      self.actInt.create_connection(activity_id,decision,act_final,{"guard":'[else]'})
+      return [previous_node,guard]
+   
+   def create_action_following_condition(self,avo:dict,activity_id:int,previous_node:str,guard:str) -> list:
+      """Create an action that follows a condition and return a ..."""
+      swimming_lane = ""
+      if avo['sw_lane']:
+         swimming_lane = " ".join(avo['sw_lane_text'])
+         swimming_lane = "[" + swimming_lane.rstrip() + "]"
+      node_name = swimming_lane + " ".join(avo['node_text'])
+      action = self.actInt.create_add_node(activity_id,'Action',{'name': node_name})
+      self.actInt.create_connection(activity_id,previous_node,action,{"guard": guard})
+      previous_node = action
+      return [previous_node]
+   
+   def create_action(self,avo:dict,activity_id:int,previous_node:str) -> list:
+      """Create an action that follows a condition and return a ..."""
+      swimming_lane = ""
+      if avo['sw_lane']:
+         swimming_lane = " ".join(avo['sw_lane_text'])
+         swimming_lane = "[" + swimming_lane.rstrip() + "]"
+      node_name = swimming_lane + " ".join(avo['node_text'])
+      action = self.actInt.create_add_node(activity_id,'Action',{'name': node_name})
+      self.actInt.create_connection(activity_id,previous_node,action,{})
+      previous_node = action
+      return [previous_node]
+   
    def create_model_using_avo(self,activity_name: str,agent_verb_object_results: list) -> None:
       """Create activity model based on agent_verb_object results."""
       self.actInt.clear_data()
@@ -327,32 +361,17 @@ class Pipeline():
       for avo in agent_verb_object_results:
          if avo['condition']:
             #deal with a condition
-            decision = self.actInt.create_add_node(activity_id,'Decision',{'name': 'ConditionNode'})
-            self.actInt.create_connection(activity_id,previous_node,decision,{})
-            previous_node = decision
-            guard = " ".join(avo['complete_sent'])
-            act_final = self.actInt.create_add_node(activity_id,'ActivityFinal',{'name':'Final'})
-            self.actInt.create_connection(activity_id,decision,act_final,{"guard": '[else]'})
+            condition_result = self.create_condition(avo,activity_id,previous_node)
+            previous_node = condition_result[0]
+            guard = condition_result[1]
          elif avo['action']:
             #deal with action that follows a condition
-            swimming_lane = ""
-            if avo['sw_lane']:
-               swimming_lane = " ".join(avo['sw_lane_text'])
-               swimming_lane = "[" + swimming_lane.rstrip() + "] "
-            node_name = swimming_lane + " ".join(avo['node_text'])
-            action = self.actInt.create_add_node(activity_id,'Action',{'name': node_name})
-            self.actInt.create_connection(activity_id,previous_node,action,{"guard": guard})
-            previous_node = action
+            cond_action_result = self.create_action_following_condition(avo,activity_id,previous_node,guard)
+            previous_node = cond_action_result[0]
          else:
             # normal action.
-            swimming_lane = ""
-            if avo['sw_lane']:
-               swimming_lane = " ".join(avo['sw_lane_text'])
-               swimming_lane = "[" + swimming_lane.rstrip() + "] "
-            node_name = swimming_lane + " ".join(avo['node_text'])
-            action = self.actInt.create_add_node(activity_id,'Action',{'name': node_name})
-            self.actInt.create_connection(activity_id,previous_node,action,{})
-            previous_node = action
+            action_result = self.create_action(avo,activity_id,previous_node)
+            previous_node = action_result[0]
       final = self.actInt.create_add_node(activity_id,'ActivityFinal',{'name':'Final'})
       self.actInt.create_connection(activity_id,previous_node,final,{})
       data = self.actInt.post_data()
