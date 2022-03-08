@@ -325,8 +325,6 @@ class Pipeline():
       guard = ""
       # go through all the agent_verb_object_results
       for avo in agent_verb_object_results:
-         # Something is going wrong in the definition of these things. 
-         # -> guard is not created and it is a action node instead of a connection guard
          if avo['condition']:
             #deal with a condition
             decision = self.actInt.create_add_node(activity_id,'Decision',{'name': 'ConditionNode'})
