@@ -322,8 +322,8 @@ class Pipeline():
       self.actInt.create_connection(activity_id,previous_node,decision,{})
       previous_node = decision
       guard = " ".join(avo['complete_sent'])
-      act_final = self.actInt.create_add_node(activity_id,'ActivityFinal',{'name':'Final'})
-      self.actInt.create_connection(activity_id,decision,act_final,{"guard":'[else]'})
+      # act_final = self.actInt.create_add_node(activity_id,'ActivityFinal',{'name':'Final'})
+      # self.actInt.create_connection(activity_id,decision,act_final,{"guard":'[else]'})
       return [previous_node,guard]
    
    def create_action_following_condition(self,avo:dict,activity_id:int,previous_node:str,guard:str) -> list:
@@ -349,7 +349,95 @@ class Pipeline():
       self.actInt.create_connection(activity_id,previous_node,action,{})
       previous_node = action
       return [previous_node]
-   
+
+   def select_conditional_results(self,avo_sents:list) -> list:
+      """Select the conditional results from the avo_sents."""
+      index = 0
+      results = []
+      coref_ids = set()
+      if 'coref_ids' in avo_sents[0]:
+         coref_ids = set(avo_sents[0]['coref_ids'])
+      while (True):
+         if index >= len(avo_sents):
+            break
+         avo_sent = avo_sents[index]
+         if avo_sent['condition'] or avo_sent['action']:
+            # found a condition action structure
+            results.append(avo_sent)
+            # as the coreference ids from the first avo_sent might not be
+            # the correct ones we extend them with all the condition
+            # actions we have found earlier
+            if 'coref_ids' in avo_sent:
+               coref_ids = set.union(coref_ids, set(avo_sent['coref_ids']))
+         elif 'coref_ids' in avo_sent:
+            # process the coreference id.
+            if not set(avo_sent['coref_ids']).isdisjoint(coref_ids):
+               # There is a match between the two coref_id lists.
+               results.append(avo_sent)
+         else:
+            break
+         index += 1
+      return results
+
+
+   def process_conditional_structure(self,avo_sents_sub_set:list,previous_node: str, activity_id:int):
+      """Process a subset of avosents into a conditional structure."""
+      conditional_results = self.select_conditional_results(avo_sents_sub_set)
+      if len(conditional_results) < 1:
+         return previous_node
+      # keep track of the merge nodes (action nodes)
+      # keep track of previous node and node type
+      merge_nodes = []
+      previous_type = "decision"
+      # add conditional node & link to previous node.
+      # keep track of the conditional node.
+      # assumption first node is a condition
+      condition_result = self.create_condition(conditional_results[0],activity_id,previous_node)
+      previous_node = condition_result[0]
+      guard = condition_result[1]
+      conditional_start_node = previous_node
+      
+      for index, avo_sent in enumerate(conditional_results):
+         if index != 0:
+            if avo_sent['condition']:
+               # if we have condition -> generate guard and continue with action.
+               # set previous to begin condition.
+               guard = " ".join(avo_sent['complete_sent'])
+               previous_type = 'decision'
+               previous_node = conditional_start_node
+               continue
+            else:
+               # avo_sent['action'] or other.
+               # create action that follows last condition -> add it to the list of merge nodes
+               if previous_type == 'decision':
+                  action = self.create_action_following_condition(avo_sent,activity_id,previous_node,guard)
+                  previous_node = action[0]
+                  previous_type = 'action'
+                  # add to last node
+                  merge_nodes.append(action[0])
+               else:
+                  action = self.create_action(avo_sent,activity_id,previous_node)
+                  # if last was an action -> and not condition -> replace the last node. 
+                  pos = merge_nodes.index(previous_node)
+                  merge_nodes[pos] = action[0]
+                  previous_node = action[0]
+                  previous_type = 'action'
+               # TODO check for termination in the node 
+               # remove from list of merge nodes
+         else:
+            # Skip first sentence, as we already used it.
+            pass
+      # everything done? -> create a merge node and a connection from each merge nodes.
+      merge_node = self.actInt.create_add_node(activity_id,'Merge',{'name': 'MergeNode'})
+      #create merge node
+      print(merge_nodes)
+      for node in merge_nodes:
+         # create connection to merge node
+         print('activity_id {}, node {}, merge_node {}'.format(activity_id,node,merge_node))
+         self.actInt.create_connection(activity_id,node,merge_node,{})
+      # return the merge node.
+      return [merge_node,len(conditional_results)]
+
    def create_model_using_avo(self,activity_name: str,agent_verb_object_results: list) -> None:
       """Create activity model based on agent_verb_object results."""
       self.actInt.clear_data()
@@ -358,20 +446,27 @@ class Pipeline():
       previous_node = node_id
       guard = ""
       # go through all the agent_verb_object_results
-      for avo in agent_verb_object_results:
+      avo_index = 0
+      while True:
+         avo = agent_verb_object_results[avo_index]
          if avo['condition']:
             #deal with a condition
-            condition_result = self.create_condition(avo,activity_id,previous_node)
-            previous_node = condition_result[0]
-            guard = condition_result[1]
+            process_cond_result = self.process_conditional_structure(agent_verb_object_results[avo_index:],previous_node,activity_id)
+            previous_node = process_cond_result[0]
+            processed_results = process_cond_result[1]
+            avo_index += processed_results - 2
          elif avo['action']:
             #deal with action that follows a condition
-            cond_action_result = self.create_action_following_condition(avo,activity_id,previous_node,guard)
-            previous_node = cond_action_result[0]
+            # cond_action_result = self.create_action_following_condition(avo,activity_id,previous_node,guard)
+            # previous_node = cond_action_result[0]
+            print('we are missing an action tagged avo_sent.')
          else:
             # normal action.
             action_result = self.create_action(avo,activity_id,previous_node)
             previous_node = action_result[0]
+         if avo_index >= len(agent_verb_object_results)-1:
+            break
+         avo_index += 1
       final = self.actInt.create_add_node(activity_id,'ActivityFinal',{'name':'Final'})
       self.actInt.create_connection(activity_id,previous_node,final,{})
       data = self.actInt.post_data()
@@ -458,6 +553,17 @@ def run_new_demo(text:str, name:str):
    cor.tag_clusters_avo_sents(avo_sents,coref[1],coref[2])
    ppl.create_model_using_avo(name, avo_sents)
    return [avo_sents,coref,agents]
+
+
+
+
+
+# avo_sents = [{'action_text': ['the', 'part', 'is', 'available', 'in', '-', 'house'], 'begin_index': 1, 'end_index': 7, 'sent_index': 6, 'avo_results': [{'agent': [-1, -1], 'verb': [3, 3], 'object': [1, 2], 'begin_index': 1, 'end_index': 7, 'ADV': [-1, -1]}], 'condition': True, 'action': False, 'sw_lane': [], 'avo_result_index': 7, 'node_text': ['the', 'part', 'is', 'available', 'in', '-', 'house'], 'complete_sent': ['the', 'part', 'is', 'available', 'in', '-', 'house'], 'coref_ids': [4], 'coref_spans': {4: [[1, 2]]}}, {'action_text': ['it', 'is', 'reserved'], 'begin_index': 9, 'end_index': 11, 'sent_index': 6, 'avo_results': [{'agent': [-1, -1], 'verb': [10, 10], 'object': [-1, -1], 'begin_index': 10, 'end_index': 10, 'ADV': [-1, -1]}, {'agent': [-1, -1], 'verb': [11, 11], 'object': [9, 9], 'begin_index': 9, 'end_index': 11, 'ADV': [0, 7]}], 'condition': False, 'action': True, 'sw_lane': [], 'avo_result_index': 8, 'node_text': ['the', 'part', 'is', 'reserved'], 'complete_sent': ['the', 'part', 'is', 'reserved'], 'coref_ids': [4], 'coref_spans': {4: [[9, 9]]}}]
+# # would use it like this: result = process_conditional_structure(avo_sents[7:]) for demo purposes it is as below.
+# result = process_conditional_structure(avo_sents)
+
+
+
 
 # ppl = Pipeline()
 # srl = sem_rol.SemanticRoleLabelling()
