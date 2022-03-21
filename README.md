@@ -13,9 +13,19 @@ bash download_models.sh
 
 ### Docker
 To run the docker containers one has to deploy them using the docker-compose file.
+
+The first time you will also need to build and deploy the docker file in the [ngUML backend](https://github.com/ludev-ng-nl/ngUML.backend) repository, as the network created in this docker file is used in this project.
+
+Next up we need to build the dockerfile:
 ```
-docker-compose up
+docker compose build
 ```
+Then we can deploy the docker container with the following command:
+```
+docker compose up
+```
+
+If you would like to stop it, use ctrl-c
 
 ## NLP models
 The NLP models are taken from AllenNLP, currently the Coreference [[1]](#1) and Semantic Role Labelling [[2]](#2) models are used. They were taken from the [AllenNLP](https://allennlp.org/) website. 
