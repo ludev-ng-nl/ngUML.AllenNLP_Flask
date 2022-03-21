@@ -1,9 +1,11 @@
 """The pipeline script to combine all the different NLP modules."""
+from calendar import c
 import nltk
 import spacy
 from nltk import pos_tag
 from nltk.tokenize import word_tokenize, sent_tokenize
 from tqdm import tqdm
+import itertools
 import activityInterface as actInt
 import conditionExtraction as condExtr
 import semantic_role_labelling as sem_rol
@@ -412,12 +414,50 @@ class Pipeline:
 
     def select_condition_avo_for_entailment(self, avo_sents: list) -> list:
         """Select all avo_sents that have a condition and create a set to predict the entailment."""
-        avo_condition_ids = [index for index, avo in avo_sents if avo["condition"]]
+        avo_condition_ids = [
+            index for index, avo in enumerate(avo_sents) if avo["condition"]
+        ]
         avo_cond_entail_sets = []
         for index, avo_cond in enumerate(avo_condition_ids):
             if index > 0:
                 avo_cond_entail_sets.append([avo_condition_ids[index - 1], avo_cond])
         return avo_cond_entail_sets
+
+    def select_condition_avo_for_entailment_using_coref(self, avo_sents: list) -> list:
+        """Select all avo_sents that have a condition and are in a similar coref_cluster.
+
+        Description:
+            We extract all the coreference ids from the conditional sentences. Then combine
+            all the avo_sent ids into the same dictionary element, such that we have them
+            combined in the same place. Then we can process that part.
+
+        Args:
+            - avo_sents (list): all the avo_sents we are considering
+
+        Returns
+            - entailment_coreference (list): a combination of all the coreference conditions
+                that are part of the same coreference cluster.
+        """
+        avo_condition_ids = [
+            index for index, avo in enumerate(avo_sents) if avo["condition"]
+        ]
+        coref_ids = {}
+        for avo_id in avo_condition_ids:
+            if "coref_ids" in avo_sents[avo_id]:
+                coref = avo_sents[avo_id]["coref_ids"]
+                for coref_id in coref:
+                    if coref_id in coref_ids:
+                        coref_ids[coref_id].append(avo_id)
+                    else:
+                        coref_ids[coref_id] = [avo_id]
+
+        coref_clusters = list(coref_ids.keys())
+        coref_clusters.sort()
+        avo_sents_cluster_combinations = []
+        for cluster in coref_clusters:
+            for combination in itertools.combinations(coref_ids[cluster], 2):
+                avo_sents_cluster_combinations.append([combination[0], combination[1]])
+        return avo_sents_cluster_combinations
 
     def create_premise_hypothesis_from_avo_ids(
         self, avo_sents: list, avo_condition_entail_sets: list
@@ -430,7 +470,7 @@ class Pipeline:
 
         Args:
             - avo_sents (list): all avo_sents
-            - avo_condition_entail_sets (list): the sets we will entail within them an avo_sent id.
+            - avo_condition_entail_sets (list): the sets we will entail within them an avo_sent id. [int,int] = [premise_avo,hypothesis_avo]
 
         Returns:
             - premise_hypo_list (list): a list of all the premise and hypothesis combinations for the given sentences.
@@ -443,12 +483,106 @@ class Pipeline:
             premise_hypo_list.append(prem_hypo)
         return premise_hypo_list
 
+    def tag_conditional_entailment(
+        self,
+        avo_sents: list,
+        condition_avo_entail: list,
+        conditional_entailment_results: list,
+    ) -> None:
+        """Tag all the conditional entailment structures in avo_sents.
+
+        Description:
+            Tag all avo_sents with start conditional entail data and a receiving conditional entail data sentence.
+            The data we will be adding is the [label, index of the entailment, index of the receiving avo]
+
+        Args:
+            - avo_sents (list): the avo sents where we will add the data.
+            - condition_avo_entail (list): the conditional_avo indexes per pair we will use to tag in avo_sents.
+            - conditional_entailment_results (list): the results we will be adding to avo_sents
+
+        Returns:
+            - None
+        """
+        for index_entail, result in enumerate(conditional_entailment_results):
+            label = result["label"]
+            ix_cond_start = condition_avo_entail[index_entail][0]
+            ix_cond_receive = condition_avo_entail[index_entail][1]
+            avo_sents[ix_cond_start]["start_cond_entail"] = [
+                label,
+                index_entail,
+                ix_cond_receive,
+            ]
+            avo_sents[ix_cond_receive]["receive_cond_entail"] = [
+                label,
+                index_entail,
+                ix_cond_start,
+            ]
+
+    def tag_conditional_coref_entailment(
+        self,
+        avo_sents: list,
+        condition_coref_avo_entail: list,
+        conditional_coref_entailment_results: list,
+    ) -> None:
+        """Tag all the conditional coref entailment structures in avo_sents.
+
+        Description:
+            Tag all avo_sents with start conditional entail data and a receiving conditional entail data sentence.
+            The data we will be adding is the [label, index of the entailment, index of the receiving avo]
+
+        Args:
+            - avo_sents (list): the avo sents where we will add the data.
+            - condition_coref_avo_entail (list): the conditional_avo indexes per pair we will use to tag in avo_sents.
+            - conditional_coref_entailment_results (list): the results we will be adding to avo_sents
+
+        Returns:
+            - None
+        """
+        for index_entail, result in enumerate(conditional_coref_entailment_results):
+            label = result["label"]
+            ix_cond_start = condition_coref_avo_entail[index_entail][0]
+            ix_cond_receive = condition_coref_avo_entail[index_entail][1]
+            if "start_cond_coref_entail" in avo_sents[ix_cond_start]:
+                avo_sents[ix_cond_start]["start_cond_coref_entail"].append(
+                    [label, index_entail, ix_cond_receive]
+                )
+            else:
+                avo_sents[ix_cond_start]["start_cond_coref_entail"] = [
+                    [label, index_entail, ix_cond_receive]
+                ]
+            if "receive_cond_coref_entail" in avo_sents[ix_cond_receive]:
+                avo_sents[ix_cond_receive]["receive_cond_coref_entail"].append(
+                    [label, index_entail, ix_cond_start]
+                )
+            else:
+                avo_sents[ix_cond_receive]["receive_cond_coref_entail"] = [
+                    [label, index_entail, ix_cond_start]
+                ]
+
     def conditional_entailment(self, avo_sents: list) -> None:
         """Entails all conditional sentences and marks them using a entailment id if there is a contradiction."""
         # do for sequential conditions
         # do for all conditions with a coref.
         # tag in avo_sents which can then be used in the process conditional structure.
-        pass
+        condition_avo_entail = self.select_condition_avo_for_entailment(avo_sents)
+        condition_avo_coref_entail = (
+            self.select_condition_avo_for_entailment_using_coref(avo_sents)
+        )
+        combined_entail = condition_avo_entail + condition_avo_coref_entail
+        premise_hypo_input = self.create_premise_hypothesis_from_avo_ids(
+            avo_sents, combined_entail
+        )
+        # predict with entailment
+        ent = entail.Entailment()
+        entailment_result = ent.entailment(premise_hypo_input)
+        cond_entail_results = entailment_result[: len(condition_avo_entail)]
+        cond_coref_entail_results = entailment_result[len(condition_avo_entail) :]
+        self.tag_conditional_entailment(
+            avo_sents, condition_avo_entail, cond_entail_results
+        )
+        self.tag_conditional_coref_entailment(
+            avo_sents, condition_avo_coref_entail, cond_coref_entail_results
+        )
 
     def process_conditional_structure(
         self, avo_sents_sub_set: list, previous_node: str, activity_id: int
@@ -702,3 +836,4 @@ agents = ppl.get_agents_and_tag_swimlanes_avo_sents(avo_sents)
 cor = corefer.Coreference()
 cor.fill_swimming_lanes_and_coref_sents(avo_sents, coref[0], coref[1])
 cor.tag_clusters_avo_sents(avo_sents, coref[1], coref[2])
+ppl.conditional_entailment(avo_sents)
