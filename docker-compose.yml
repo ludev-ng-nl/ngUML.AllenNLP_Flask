@@ -11,6 +11,18 @@ services:
     networks:
       - "default"
       - "nguml_backend_default"
+  # allen_entail:
+  #   build:
+  #     context: "."
+  #     dockerfile: "Dockerfile.allen_entail"
+  #   ports:
+  #     - "5054:5000"
+  #   volumes:
+  #     - ./allen_nlp_entailment/src:/app
+  #     - ./allen_nlp_entailment/allen_nlp_cache:/root/.allennlp/cache
+  #   networks:
+  #     - "default"
+  #     - nguml_backend_default
   flask:
     build:
       context: "."
@@ -32,7 +44,7 @@ services:
   #     - ./stanza:/app
   #   networks:
   #     - default
-networks: 
+networks:
   default:
     driver: bridge
   nguml_backend_default:

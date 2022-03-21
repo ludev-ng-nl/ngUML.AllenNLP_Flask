@@ -142,4 +142,5 @@ cython_debug/
 /allen_nlp/src
 .DS_Store
 
+/allen_nlp_entailment/allen_nlp_cache
 /stanza
