@@ -17,7 +17,9 @@ COPY allen_nlp/ .
 RUN pip3 install torch==1.9.0+cpu torchvision==0.10.0+cpu torchaudio==0.9.0 -f https://download.pytorch.org/whl/torch_stable.html
 RUN pip install allennlp
 RUN pip install allennlp-models
+RUN pip install allennlp[checklist]
 RUN python -m nltk.downloader punkt
 RUN python -m nltk.downloader wordnet
+RUN python -m nltk.downloader omw-1.4
 
 CMD [ "python3", "-m" , "flask", "run", "--host=0.0.0.0"]
