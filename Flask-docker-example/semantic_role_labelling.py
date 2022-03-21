@@ -143,15 +143,18 @@ class SemanticRoleLabelling(AllenNLPinterface):
 
    
    ## From here we work on the condition extraction.
-   def get_sentences_from_srl_tag(self,tag,output):
-      """Get all sentences form SRL output that contain a specific tag in them.
+
+
+
+   def get_sentences_from_srl_tag(self, tag:str, output:list) -> list:
+      """Get all sentences from SRL output that contain a specific SRL tag.
 
       Args:
          - tag (str): tag we are looking for. For example 'B-ARGM-ADV'
          - output (list(dict)): containing all the results from the SRL
       
       Returns:
-         - result (list(string)): List of all sentences found in output that have the given tag.
+         - result (list(str)): List of all sentences found in output that have the given tag.
       
       """
       result = []
