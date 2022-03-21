@@ -3,6 +3,6 @@
     "python.linting.pydocstyleEnabled": false,
     "python.linting.enabled": true,
     "python.linting.pylintArgs": [
-        "--indent-string='   '"
+        "--indent-string='    '"
     ]
 }
