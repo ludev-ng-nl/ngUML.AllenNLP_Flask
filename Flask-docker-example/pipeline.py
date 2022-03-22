@@ -1,5 +1,4 @@
 """The pipeline script to combine all the different NLP modules."""
-from calendar import c
 import nltk
 import spacy
 from nltk import pos_tag
@@ -371,8 +370,9 @@ class Pipeline:
         """Select the conditional results from the avo_sents."""
         index = 0
         results = []
-        first_conditional_sent = None
-        entailmentInterface = entail.Entailment()
+        # first_conditional_sent = None
+        # entailmentInterface = entail.Entailment()
+        # condition_res = self.process_single_condition(conditional_results[0],decision_nodes,conditional_start_node)
         coref_ids = set()
         if "coref_ids" in avo_sents[0]:
             coref_ids = set(avo_sents[0]["coref_ids"])
@@ -408,6 +408,43 @@ class Pipeline:
                     # There is a match between the two coref_id lists.
                     results.append(avo_sent)
             else:
+                break
+            index += 1
+        return results
+
+    def select_condition_results_entail(self, avo_sents_subset: list) -> list:
+        """Select conditional results based on entailment."""
+        first_condition = avo_sents_subset[0]
+        results = []
+        if not first_condition["condition"]:
+            return []
+        test_decision_nodes = {}
+        first_res = self.process_single_condition(
+            first_condition, test_decision_nodes, ["fake_node"]
+        )
+        cond_key = "d" + str(first_condition["start_cond_entail"][1])
+        # we use the condition key to only retrieve the conditions that are part of the
+        # current conditional structure. -> mostly low-level structure. The larger levels are
+        # created in the process_conditional results, where we make use of earlier created
+        # nodes.
+        results.append(first_condition)
+        index = 1
+        while True:
+            if index >= len(avo_sents):
+                break
+            avo_sent = avo_sents_subset[index]
+            if avo_sent["condition"]:
+                condition_res = self.process_single_condition(
+                    avo_sent, test_decision_nodes, ["fake_node"]
+                )
+                if condition_res[0]:
+                    results.append(avo_sent)
+                else:
+                    break
+            elif avo_sent["action"]:
+                results.append(avo_sent)
+            else:
+                # currently we break, but there might be actions that correspond to the same.
                 break
             index += 1
         return results
@@ -584,8 +621,59 @@ class Pipeline:
             avo_sents, condition_avo_coref_entail, cond_coref_entail_results
         )
 
+    def process_single_condition(
+        self, avo_sent: dict, decision_nodes: dict, decision_node: list
+    ) -> list:
+        """Process one condition and add to the according parts.
+        TODO: just testing
+        """
+        to_return_node = None
+        if "start_cond_entail" in avo_sent:
+            if avo_sent["start_cond_entail"][0] == "contradiction":
+                decision_key = "d" + str(avo_sent["start_cond_entail"][1])
+                decision_nodes[decision_key] = decision_node
+        if "receive_cond_entail" in avo_sent:
+            if avo_sent["receive_cond_entail"][0] == "contradiction":
+                decision_key = "d" + str(avo_sent["receive_cond_entail"][1])
+                to_return_node = decision_nodes[decision_key]
+        # maybe we need to split the 'normal' condition and coref conditions
+        coref_nodes = []
+        if "start_cond_coref_entail" in avo_sent:
+            for result in avo_sent["start_cond_coref_entail"]:
+                if result[0] == "contradiction":
+                    decision_key = "c" + str(result[1])
+                    decision_nodes[decision_key] = decision_node
+        if "receive_cond_coref_entail" in avo_sent:
+            for result in avo_sent["receive_cond_coref_entail"]:
+                if result[0] == "contradiction":
+                    decision_key = "c" + str(result[1])
+                    coref_nodes.append(decision_nodes[decision_key])
+        return [to_return_node, coref_nodes]
+        # we have a condition
+        #
+        # if we have the start of a condition && a contradiction
+        # add to the dict of decision nodes.
+        # with the id and a 'd' to specify it is a decision
+        # elif receive && a contradiction
+        # search decision nodes
+        # else
+        # do nothing as we don't have a contradiction
+
+        # if we have a 'start_cond_coref_entail'
+        # for each result in here
+        # if contradiction
+        # add decision node to decision nodes with label 'c' + id
+        # elif we have a receive_cond_coref_ential && contradiction
+        #  search decision nodes
+        # search_id = 'c' + str()
+        # prev node = decision_nodes[]
+
     def process_conditional_structure(
-        self, avo_sents_sub_set: list, previous_node: str, activity_id: int
+        self,
+        avo_sents_sub_set: list,
+        previous_node: str,
+        activity_id: int,
+        decision_nodes: dict,
     ):
         """Process a subset of avosents into a conditional structure."""
         conditional_results = self.select_conditional_results(avo_sents_sub_set)
@@ -680,13 +768,17 @@ class Pipeline:
         guard = ""
         # go through all the agent_verb_object_results
         avo_index = 0
+        decision_nodes = {}
         while True:
             print("avo_index {}".format(avo_index))
             avo = agent_verb_object_results[avo_index]
             if avo["condition"]:
                 # deal with a condition
                 process_cond_result = self.process_conditional_structure(
-                    agent_verb_object_results[avo_index:], previous_node, activity_id
+                    agent_verb_object_results[avo_index:],
+                    previous_node,
+                    activity_id,
+                    decision_nodes,
                 )
                 previous_node = process_cond_result[0]
                 processed_results = process_cond_result[1]
