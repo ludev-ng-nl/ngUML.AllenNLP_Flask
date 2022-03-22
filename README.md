@@ -38,6 +38,23 @@ If the models need to be upgraded in the future there are a few places where the
 
 In download_models the url to the downloads need to be changed and in app.py the link to the files need to be changed. That way one is able to upgrade the models if needed.
 
+## Handy tools
+Using the save and load function from the numpy library allows us to save dictionaries temporarily, such that we can reuse them and don't need to re-rerun everything everytime we restart. Example from [Delftstack](https://www.delftstack.com/howto/python/python-save-dictionary/#save-a-dictionary-to-file-in-python-using-the-save-function-of-numpy-library)
+
+Saving:
+```
+import numpy as np
+
+my_dict = { 'Apple': 4, 'Banana': 2, 'Orange': 6, 'Grapes': 11}
+np.save('file.npy', my_dict)
+```
+loading:
+```
+import numpy as np
+
+new_dict = np.load('file.npy', allow_pickle='TRUE')
+print(new_dict.item())
+```
 
 ## References
 <a id="1">[1]</a> 
