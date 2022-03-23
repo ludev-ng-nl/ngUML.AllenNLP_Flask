@@ -1,8 +1,8 @@
 """The pipeline script to combine all the different NLP modules."""
-import nltk
-import spacy
 import itertools
 import time
+import nltk
+import spacy
 from nltk import pos_tag
 from nltk.tokenize import word_tokenize, sent_tokenize
 from tqdm import tqdm
@@ -12,6 +12,7 @@ import semantic_role_labelling as sem_rol
 import coreference as corefer
 import text_support as text_sup
 import entailment as entail
+
 
 nltk.download("averaged_perceptron_tagger")
 spacy_nlp = spacy.load("en_core_web_sm")
@@ -288,35 +289,38 @@ class Pipeline:
         return [output, coref_text_list, clusters]
 
     def tag_conditions_actions_in_avo_results(
-        self, agent_verb_object_results: list, condition_actions: dict
+        self, agent_verb_object_results: list, condition_actions_list: dict
     ) -> list:
         """Tag condition or action if that is in the avo_result
 
         Args:
            - agent_verb_object_results (list): a list of all agent_verb_object results were extracted from the text.
-           - condition_actions (dict): a list of all condition and actions found in the text.
+           - condition_actions_list (dict): a list of all condition and actions found in the text.
 
         Returns:
            - agent_verb_object_results (list): with a tag of a condition or action.
         """
-        condition_sent_keys = [sent_key for sent_key in condition_actions.keys()]
+        condition_sent_keys = [sent_key for sent_key in condition_actions_list.keys()]
         for avo_sent in agent_verb_object_results:
             if avo_sent["sent_index"] in condition_sent_keys:
                 # condition_action = condition_res[0][avo_sent['sent_index']]
-                condition_action = condition_actions[avo_sent["sent_index"]]
-                condition = condition_action[0]
-                action = condition_action[1] if len(condition_action) > 1 else []
-                # Next step check if the condition exists in the avo_sent
-                avo_range = range(avo_sent["begin_index"], avo_sent["end_index"] + 1)
-                if condition:
-                    condition_range = range(condition[2], condition[3] + 1)
-                    # if so add a mark on this avo set -> it is a condition
-                    if set(condition_range).intersection(avo_range):
-                        avo_sent["condition"] = True
-                if action:
-                    action_range = range(action[2], action[3] + 1)
-                    if set(action_range).intersection(avo_range):
-                        avo_sent["action"] = True
+                condition_actions = condition_actions_list[avo_sent["sent_index"]]
+                for condition_action in condition_actions:
+                    condition = condition_action[0]
+                    action = condition_action[1] if len(condition_action) > 1 else []
+                    # Next step check if the condition exists in the avo_sent
+                    avo_range = range(
+                        avo_sent["begin_index"], avo_sent["end_index"] + 1
+                    )
+                    if condition:
+                        condition_range = range(condition[2], condition[3] + 1)
+                        # if so add a mark on this avo set -> it is a condition
+                        if set(condition_range).intersection(avo_range):
+                            avo_sent["condition"] = True
+                    if action:
+                        action_range = range(action[2], action[3] + 1)
+                        if set(action_range).intersection(avo_range):
+                            avo_sent["action"] = True
         return agent_verb_object_results
 
     def create_activity_server(self, activity_name: str) -> int:
@@ -451,7 +455,21 @@ class Pipeline:
         return results
 
     def select_condition_avo_for_entailment(self, avo_sents: list) -> list:
-        """Select all avo_sents that have a condition and create a set to predict the entailment."""
+        """Select all avo_sents that have a condition and create a set to predict the entailment.
+
+        Description:
+            Select all avo_sents if there is a condition tagged in them we consider it.
+            The goal of entailment is to specify how two or more conditions relate to one another.
+            So we only consider pairs of conditions.
+            If there is just one condition we don't consider it for entailment.
+
+        Args:
+            - avo_sents (list): all avo_sent results we will be searching through.
+
+        Returns:
+            - avo_cond_entail_sets (list): a list where each item consists of the current condition
+                and the next condition.
+        """
         avo_condition_ids = [
             index for index, avo in enumerate(avo_sents) if avo["condition"]
         ]
@@ -610,6 +628,10 @@ class Pipeline:
         premise_hypo_input = self.create_premise_hypothesis_from_avo_ids(
             avo_sents, combined_entail
         )
+
+        if not combined_entail:
+            print("there are no condition sets, so we skip entailment.")
+            return
         # predict with entailment
         ent = entail.Entailment()
         entailment_result = ent.entailment(premise_hypo_input)
@@ -947,9 +969,9 @@ def test_run_demo_data(post_model: bool) -> list:
     return data
 
 
-text_support = text_sup.TextSupport()
-input_texts = text_support.get_all_texts_activity("test-data")
-input_text_var = input_texts[2]
+# text_support = text_sup.TextSupport()
+# input_texts = text_support.get_all_texts_activity("test-data")
+# input_text_var = input_texts[2]
 
 
 def run_new_demo(text: str, name: str):
@@ -974,21 +996,34 @@ def run_new_demo(text: str, name: str):
 # # would use it like this: result = process_conditional_structure(avo_sents[7:]) for demo purposes it is as below.
 # result = process_conditional_structure(avo_sents)
 
-start = time.time()
-test_text = input_texts[4]
-ppl = Pipeline()
-srl = sem_rol.SemanticRoleLabelling()
-srl_result = srl.semrol_text(test_text)
-condition_res = condExtr.extract_condition_action_data([test_text], [srl_result])
-avo_sents = srl.get_avo_for_sentences(srl_result)
-avo_sents = ppl.tag_conditions_actions_in_avo_results(avo_sents, condition_res[0])
-coref = ppl.coreference_text(test_text)
-agents = ppl.get_agents_and_tag_swimlanes_avo_sents(avo_sents)
-cor = corefer.Coreference()
-cor.fill_swimming_lanes_and_coref_sents(avo_sents, coref[0], coref[1])
-cor.tag_clusters_avo_sents(avo_sents, coref[1], coref[2])
-before_entail = time.time()
-print("time elapsed before entail {}".format(before_entail - start))
-ppl.conditional_entailment(avo_sents)
-end = time.time()
-print("time elapsed {}".format(end - start))
+
+def test_condition_extraction(test_text: str):
+    ppl = Pipeline()
+    srl = sem_rol.SemanticRoleLabelling()
+    srl_result = srl.semrol_text(test_text)
+    condition_res = condExtr.extract_condition_action_data([test_text], [srl_result])
+    avo_sents = srl.get_avo_for_sentences(srl_result)
+    avo_sents = ppl.tag_conditions_actions_in_avo_results(avo_sents, condition_res[0])
+    return [condition_res, avo_sents]
+
+
+def run_latest_demo(test_text: str):
+    start = time.time()
+    # test_text = input_texts[3]
+    ppl = Pipeline()
+    srl = sem_rol.SemanticRoleLabelling()
+    srl_result = srl.semrol_text(test_text)
+    condition_res = condExtr.extract_condition_action_data([test_text], [srl_result])
+    avo_sents = srl.get_avo_for_sentences(srl_result)
+    avo_sents = ppl.tag_conditions_actions_in_avo_results(avo_sents, condition_res[0])
+    coref = ppl.coreference_text(test_text)
+    agents = ppl.get_agents_and_tag_swimlanes_avo_sents(avo_sents)
+    cor = corefer.Coreference()
+    cor.fill_swimming_lanes_and_coref_sents(avo_sents, coref[0], coref[1])
+    cor.tag_clusters_avo_sents(avo_sents, coref[1], coref[2])
+    before_entail = time.time()
+    print("time elapsed before entail {}".format(before_entail - start))
+    ppl.conditional_entailment(avo_sents)
+    end = time.time()
+    print("time elapsed {}".format(end - start))
+    return avo_sents
