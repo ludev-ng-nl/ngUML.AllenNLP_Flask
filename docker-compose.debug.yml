@@ -1,0 +1,71 @@
+version: "3.9"
+services:
+  allen_nlp:
+    build:
+      context: "."
+      dockerfile: "Dockerfile.allen"
+    ports:
+      - "5053:5000"
+    volumes:
+      - ./allen_nlp:/app
+    networks:
+      - "default"
+      - "nguml_backend_default"
+  # allen_entail:
+  #   build:
+  #     context: "."
+  #     dockerfile: "Dockerfile.allen_entail"
+  #   ports:
+  #     - "5054:5000"
+  #   volumes:
+  #     - ./allen_nlp_entailment/src:/app
+  #     - ./allen_nlp_entailment/allen_nlp_cache:/root/.allennlp/cache
+  #   networks:
+  #     - "default"
+  #     - nguml_backend_default
+  flask:
+    build:
+      context: "."
+      dockerfile: "Dockerfile.flask.debug"
+    ports:
+      - "5051:5000"
+      - "5678:5678"
+    volumes:
+      - ./Flask-docker-example:/app
+    entrypoint:
+      [
+        "python",
+        "-m",
+        "debugpy",
+        "--listen",
+        "0.0.0.0:5678",
+        "-m",
+        "app",
+        "--wait-for-client",
+        "--multiprocess",
+        "-m",
+        "flask",
+        "run",
+        "-h",
+        "0.0.0.0",
+        "-p",
+        "5000"
+      ]
+    networks:
+      - default
+      - nguml_backend_default
+  # stanza:
+  #   build:
+  #     context: "."
+  #     dockerfile: "Dockerfile.stanza"
+  #   ports:
+  #     - "5052:5000"
+  #   volumes:
+  #     - ./stanza:/app
+  #   networks:
+  #     - default
+networks:
+  default:
+    driver: bridge
+  nguml_backend_default:
+    external: true

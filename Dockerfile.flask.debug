@@ -1,0 +1,20 @@
+# docker build --tag thesis-python .
+#docker run -d -p 2000:2000 thesis-python
+FROM python:3.8-slim-buster
+
+WORKDIR  /app
+
+COPY Flask-docker-example/requirements.txt requirements.txt
+RUN pip3 install -r requirements.txt
+
+COPY Flask-docker-example/ .
+
+#add this to the requirements.txt
+RUN pip install requests
+RUN pip install nltk
+RUN pip install debugpy
+RUN python -m nltk.downloader punkt
+RUN python -m nltk.downloader wordnet
+RUN python -m spacy download en_core_web_sm
+
+CMD [ "python3", "-m" , "flask", "run", "--host=0.0.0.0"]
