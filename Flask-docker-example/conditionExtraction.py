@@ -266,7 +266,8 @@ class ConditionExtraction:
         sentence_index = possible_condition["senIndex"]
         s_index_text = possible_condition["s_index_text"]
         if len(possible_condition["condIndexes"]) > 1:
-            # Currently only one condition in a sentence is implemented -> see the [0] key on the ['condIndexes'][0]
+            # Currently only one condition in a sentence is implemented
+            #   -> see the [0] key on the ['condIndexes'][0]
             print(
                 "There are multiple condition indexes in this sentence, which is not implemented"
             )
@@ -276,7 +277,8 @@ class ConditionExtraction:
             if x not in possible_condition["senFoundTagIndex"]
         ]
         if possible_condition == possible_action:
-            # if the condition is the same as the action we check in the same sentence instead of another.
+            # if the condition is the same as the action we check in the
+            #   same sentence instead of another.
             condition_index = [
                 x
                 for x in possible_condition["senFoundTagIndex"]
@@ -308,7 +310,8 @@ class ConditionExtraction:
         """Extract the condition and action from data.
 
         Args:
-           - condition_data (dict): data representing the found information about the sentences - focussed on conditions
+           - condition_data (dict): data representing the found information
+                about the sentences - focussed on conditions
            - sentence_data (dict): data respresenting the data from SRL results for a text.
 
         Returns:
@@ -357,6 +360,8 @@ class ConditionExtraction:
 
 # Interface / Demonstration part - and helper functions.
 class ConditionExtractionInterface:
+    """Interface for the condition extraction class."""
+
     def __init__(self) -> None:
         pass
 
@@ -400,56 +405,61 @@ class ConditionExtractionInterface:
         results = []
         print("SRL for each text.")
         for text in tqdm(texts):
-            o = self.semrol_text(text)
-            results.append(o)
+            sem_rol_output = self.semrol_text(text)
+            results.append(sem_rol_output)
         return results
 
     def condition_extraction_for_texts(self, results):
         """Do condition extraction for the SRL results from several texts.
 
         Args:
-           - results (list(list(dict))): SRL result for each text given as text and a dict of verbs and tags.
+            - results (list(list(dict))): SRL result for each text given
+                as text and a dict of verbs and tags.
 
         Returns
-           - condActions (list(list(dict))): a list with all the found condition, action combinations for each text.
+            - condActions (list(list(dict))): a list with all the found
+                condition, action combinations for each text.
         """
-        condExtr = ConditionExtraction()
+        cond_extract = ConditionExtraction()
         print("Extract tags for each text.")
-        sents = condExtr.get_sents_with_tags_for_texts(
+        sents = cond_extract.get_sents_with_tags_for_texts(
             ["B-ARGM-ADV", "B-ARGM-TMP"], results
         )
-        condExtr.print_text_sents_descriptions(sents)
+        cond_extract.print_text_sents_descriptions(sents)
         print("Transform data for sentences based on tags")
         s_data = []
         for text in tqdm(sents):
-            res = condExtr.transform_data_for_sentences(text)
-            condExtr.mark_sentences_with_condition_keywords(res, text)
+            res = cond_extract.transform_data_for_sentences(text)
+            cond_extract.mark_sentences_with_condition_keywords(res, text)
             s_data.append(res)
 
-        condActions = []
-        for ix, text in enumerate(s_data):
+        condition_actions = []
+        for index, text in enumerate(s_data):
             print(text)
-            res = condExtr.extract_condition_action_from_data(text, sents[ix])
-            condActions.append(res)
-        return condActions
+            res = cond_extract.extract_condition_action_from_data(text, sents[index])
+            condition_actions.append(res)
+        return condition_actions
 
     def select_sentences_with_condition_keywords_for_texts(self, texts: list) -> list:
         """Select sentences with condition keywords for several texts."""
-        condExtr = ConditionExtraction()
+        cond_extraction = ConditionExtraction()
         results = []
-        # sents = condExtr.get_sents_with_conditional_indicators(results)
+        # sents = cond_extraction.get_sents_with_conditional_indicators(results)
         for text_item in texts:
-            results.append(condExtr.select_sentences_with_condition_keywords(text_item))
+            results.append(
+                cond_extraction.select_sentences_with_condition_keywords(text_item)
+            )
         return results
 
-    def print_condition_actions(self, conditionActions):
-        """Print the conditions and actions given in the conditionActions.
+    def print_condition_actions(self, condition_actions):
+        """Print the conditions and actions given in the condition_actions.
 
         Args:
-           - list(list(dict)) : a list of texts with sentences that have a dict about each condition and action combination.
+            - list(list(dict)) : a list of texts with sentences that have a
+                dict about each condition and action combination.
         """
         # ix = 0
-        for text in conditionActions:
+        for text in condition_actions:
             for sent in text:
                 print(
                     "c: {} \t a: {}".format(
@@ -461,7 +471,8 @@ class ConditionExtractionInterface:
 # Demonstration
 #
 # #Demonstration with single text
-# texts = create_single_text_input("This is a string of texts. Which presents an input. If the part is in-house the order is built.")
+# texts = create_single_text_input("This is a string of texts. Which presents an input.
+# If the part is in-house the order is built.")
 # condExInt = ConditionExtractionInterface()
 # texts = condExInt.get_text_from_folder('test-data')
 # results = condExInt.srl_for_all_texts(texts)
@@ -473,20 +484,20 @@ class ConditionExtractionInterface:
 # also check Condition analysis.xlsx in the misc folder of the google drive.
 
 
-def print_sent_and_tags_analysis(conditionResults, results):
+def print_sent_and_tags_analysis(condition_results, results):
     """Print sentences with conditions and all their tags from SRL for easy analysis and copying to excel.
 
     Args:
-       - conditionResults (list(dict)): data on which sentences have conditional indicators. e.g. {'sen_ids': [6, 7, 10], 'sen_id_data': {6: ['if'], 7: ['if'], 10: ['if']}}
+       - condition_results (list(dict)): data on which sentences have conditional indicators. e.g. {'sen_ids': [6, 7, 10], 'sen_id_data': {6: ['if'], 7: ['if'], 10: ['if']}}
        - results (list(dict)): Result data from the SRL result.
     Returns:
        - None
     """
-    for index, text_item in enumerate(conditionResults):
-        for ix in text_item["sen_ids"]:
+    for index, text_item in enumerate(condition_results):
+        for sent_id in text_item["sen_ids"]:
             print("\n")
-            print(" ".join(results[index][ix]["words"]))
-            for result in results[index][ix]["verbs"]:
+            print(" ".join(results[index][sent_id]["words"]))
+            for result in results[index][sent_id]["verbs"]:
                 print(" ".join(result["tags"]))
 
 
@@ -575,12 +586,15 @@ def get_condition_SRL_after_indicator(cond_index_list, sent_index, result):
     """Retrieve an conditional SRL that follows after the condition index.
 
     Args:
-       - cond_index_list [(int),(int)]: index of the condition in the sentence, where the first is the begin and second is the end.
-       - sent_index (int): index of the sentence in the text.
-       - result (list(dict(list(dict)))): a list of the SRL result, that will be searched.
+        - cond_index_list [(int),(int)]: index of the condition in the sentence,
+            where the first is the begin and second is the end.
+        - sent_index (int): index of the sentence in the text.
+        - result (list(dict(list(dict)))): a list of the SRL result, that will be searched.
 
     Returns:
-       - condition [(int),(int),(int),(int),(int),(int)]: list of integers: sentence index, condition sentence index, conditional index and the index of the end of condition, conditional indicator index begin and conditional indicator end.
+        - condition [(int),(int),(int),(int),(int),(int)]: list of integers: sentence index,
+            condition sentence index, conditional index and the index of the end of condition,
+            conditional indicator index begin and conditional indicator end.
     """
     cond_index = cond_index_list[1]
     if cond_index + 1 <= len(result[sent_index]["verbs"][0]["tags"]):
@@ -661,23 +675,25 @@ def get_srl_within_range(srlIndex, searchIndex, after, srl_result_verbs):
     return [firstIndex, endIndex]
 
 
-def get_action_srl_results(bArgSents, endCond, resultVerbs):
+def get_action_srl_results(begin_arg_sents, end_condition, result_verbs):
     """Get the actions, using SRL and the last index of a condition.
 
     Args:
-       - bArgSents (list(list(int,int)): sentences with B-ARG in them, it contains the sentence index and SRL tag: [index, SRLTag]
-       - endCond (int): index of the end of the condition.
-       - resultVerbs (list(dict(list)): result for this specific sentence with the verbs. result[sent_index]['verbs']
+       - begin_arg_sents (list(list(int,int)): sentences with B-ARG in them, it contains the sentence index and SRL tag: [index, SRLTag]
+       - end_condition (int): index of the end of the condition.
+       - result_verbs (list(dict(list)): result for this specific sentence with the verbs. result[sent_index]['verbs']
 
     Returns:
        - action (list(int,int)): a list with two integers, begin index and end index of the action. e.g. [beginIndex,endIndex]
     """
-    actionResults = []
-    for item in bArgSents:
-        actionResults.append(get_srl_within_range(item[0], endCond, True, resultVerbs))
-    compareLengths = [sum(x) for x in actionResults]
-    item_index = compareLengths.index(max(compareLengths))
-    action = actionResults[item_index]
+    action_results = []
+    for item in begin_arg_sents:
+        action_results.append(
+            get_srl_within_range(item[0], end_condition, True, result_verbs)
+        )
+    compare_lengths = [sum(x) for x in action_results]
+    item_index = compare_lengths.index(max(compare_lengths))
+    action = action_results[item_index]
     return action
 
 
@@ -761,7 +777,7 @@ def orchestration_condition_sentence(
                     # replace the condition with something empty, such that we don't get a text
                     srlData[2] = srlData[4]
                     # subtracting one to create an empty list when building the guard.
-                    srlData[3] = srlData[5] - 1
+                    srlData[3] = srlData[5]
                 else:
                     # consider the one after the end and + 1 if there is a srl result
                     nextCond = [

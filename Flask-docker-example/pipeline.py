@@ -12,6 +12,7 @@ import semantic_role_labelling as sem_rol
 import coreference as corefer
 import text_support as text_sup
 import entailment as entail
+from indicators import empty_conditional_indicators
 
 
 nltk.download("averaged_perceptron_tagger")
@@ -321,6 +322,16 @@ class Pipeline:
                         action_range = range(action[2], action[3] + 1)
                         if set(action_range).intersection(avo_range):
                             avo_sent["action"] = True
+                    if condition and action:
+                        if avo_sent["condition"] and avo_sent["action"]:
+                            # We have an empty conditional keyword
+                            begin_index = avo_sent["begin_index"]
+                            avo_sent["condition_keyword"] = avo_sent["action_text"][
+                                condition[2]
+                                - begin_index : condition[3]
+                                - begin_index
+                                + 1
+                            ]
         return agent_verb_object_results
 
     def create_activity_server(self, activity_name: str) -> int:
@@ -730,7 +741,7 @@ class Pipeline:
             return previous_node
         # keep track of the merge nodes (action nodes)
         # keep track of previous node and node type
-        merge_nodes = []
+        nodes_to_be_merged = []
         previous_type = "decision"
         # add conditional node & link to previous node.
         # keep track of the conditional node.
@@ -740,6 +751,7 @@ class Pipeline:
         )
 
         if found_contra_coref_keys:
+            # create coreference - condition node - for the first node
             merge_node = self.actInt.create_add_node(
                 activity_id, "Merge", {"name": "MergeNode"}
             )
@@ -756,7 +768,10 @@ class Pipeline:
             condition_result = self.process_single_condition(
                 conditional_results[0], decision_nodes, previous_node
             )
+            previous_node = merge_node
+            conditional_start_node = None
         else:
+            # process normal condition - for the first node
             condition_result = self.create_condition(
                 conditional_results[0], activity_id, previous_node
             )
@@ -788,10 +803,33 @@ class Pipeline:
                     # set previous to begin condition.
                     guard = " ".join(avo_sent["complete_sent"])
                     previous_type = "decision"
-                    previous_node = conditional_start_node
-                    condition_res = self.process_single_condition(
-                        avo_sent, decision_nodes, previous_node
-                    )
+                    # previous_node = conditional_start_node
+                    if not conditional_start_node:
+                        # Case that there was a coref node, so we dont have a
+                        # conditional start node yet.
+                        condition_result = self.create_condition(
+                            avo_sent, activity_id, previous_node
+                        )
+                        previous_node = condition_result[0]
+                        guard = condition_result[1]
+                        conditional_start_node = previous_node
+
+                    if "condition_keyword" in avo_sent:
+                        conditional_keyword = " ".join(avo_sent["condition_keyword"])
+                        if conditional_keyword in empty_conditional_indicators:
+                            # process condition as an empty condition with an action.
+                            guard = "else"
+                            action = self.create_action_following_condition(
+                                avo_sent, activity_id, conditional_start_node, guard
+                            )
+                            previous_node = action[0]
+                            previous_type = "action"
+                            # add to last node
+                            nodes_to_be_merged.append(action[0])
+                    else:
+                        condition_res = self.process_single_condition(
+                            avo_sent, decision_nodes, previous_node
+                        )
                     continue
                 else:
                     # avo_sent['action'] or other.
@@ -803,14 +841,14 @@ class Pipeline:
                         previous_node = action[0]
                         previous_type = "action"
                         # add to last node
-                        merge_nodes.append(action[0])
+                        nodes_to_be_merged.append(action[0])
                     else:
                         action = self.create_action(
                             avo_sent, activity_id, previous_node
                         )
                         # if last was an action -> and not condition -> replace the last node.
-                        pos = merge_nodes.index(previous_node)
-                        merge_nodes[pos] = action[0]
+                        pos = nodes_to_be_merged.index(previous_node)
+                        nodes_to_be_merged[pos] = action[0]
                         previous_node = action[0]
                         previous_type = "action"
                     # TODO check for termination in the node
@@ -824,8 +862,8 @@ class Pipeline:
             activity_id, "Merge", {"name": "MergeNode"}
         )
         # create merge node
-        print(merge_nodes)
-        for node in merge_nodes:
+        print(nodes_to_be_merged)
+        for node in nodes_to_be_merged:
             # create connection to merge node
             print(
                 "activity_id {}, node {}, merge_node {}".format(
@@ -863,10 +901,10 @@ class Pipeline:
                 )
                 previous_node = process_cond_result[0]
                 processed_results = process_cond_result[1]
-                if processed_results == 1:
+                if processed_results >= 1:
                     avo_index += processed_results - 1
-                else:
-                    avo_index += processed_results - 2
+                # else:
+                #     avo_index += processed_results - 2
             elif avo["action"]:
                 # deal with action that follows a condition
                 # cond_action_result = self.create_action_following_condition(avo,activity_id,previous_node,guard)
@@ -884,6 +922,7 @@ class Pipeline:
             activity_id, "ActivityFinal", {"name": "Final"}
         )
         self.actInt.create_connection(activity_id, previous_node, final, {})
+        # merge nodes
         data = self.actInt.post_data()
         return self.actInt.post_activity_data_to_server(self.actInt.post_url, data)
 
@@ -955,49 +994,7 @@ TEST_TEXT = (
 )
 
 
-def test_run_demo_data(post_model: bool) -> list:
-    """Run a demonstration of the different pipeline components."""
-    ppl = Pipeline()
-    text_sup_mod = text_sup.TextSupport()
-    texts = text_sup_mod.get_all_texts_activity("test-data")
-    data = []
-    for text_index, text in enumerate(tqdm(texts)):
-        result = ppl.run_demo_for_text(
-            text, post_model, "Test run {}".format(text_index)
-        )
-        data.append(result)
-    return data
-
-
-# text_support = text_sup.TextSupport()
-# input_texts = text_support.get_all_texts_activity("test-data")
-# input_text_var = input_texts[2]
-
-
-def run_new_demo(text: str, name: str):
-    """Run demo for the pipeline."""
-    ppl = Pipeline()
-    srl = sem_rol.SemanticRoleLabelling()
-    srl_result = srl.semrol_text(text)
-    condition_res = condExtr.extract_condition_action_data([text], [srl_result])
-    avo_sents = srl.get_avo_for_sentences(srl_result)
-    avo_sents = ppl.tag_conditions_actions_in_avo_results(avo_sents, condition_res[0])
-    coref = ppl.coreference_text(text)
-    # avo_sents = replace_text_with_coref(avo_sents,coref[0],coref[1])
-    agents = ppl.get_agents_and_tag_swimlanes_avo_sents(avo_sents)
-    cor = corefer.Coreference()
-    cor.fill_swimming_lanes_and_coref_sents(avo_sents, coref[0], coref[1])
-    cor.tag_clusters_avo_sents(avo_sents, coref[1], coref[2])
-    ppl.create_model_using_avo(name, avo_sents)
-    return [avo_sents, coref, agents]
-
-
-# avo_sents = [{'action_text': ['the', 'part', 'is', 'available', 'in', '-', 'house'], 'begin_index': 1, 'end_index': 7, 'sent_index': 6, 'avo_results': [{'agent': [-1, -1], 'verb': [3, 3], 'object': [1, 2], 'begin_index': 1, 'end_index': 7, 'ADV': [-1, -1]}], 'condition': True, 'action': False, 'sw_lane': [], 'avo_result_index': 7, 'node_text': ['the', 'part', 'is', 'available', 'in', '-', 'house'], 'complete_sent': ['the', 'part', 'is', 'available', 'in', '-', 'house'], 'coref_ids': [4], 'coref_spans': {4: [[1, 2]]}}, {'action_text': ['it', 'is', 'reserved'], 'begin_index': 9, 'end_index': 11, 'sent_index': 6, 'avo_results': [{'agent': [-1, -1], 'verb': [10, 10], 'object': [-1, -1], 'begin_index': 10, 'end_index': 10, 'ADV': [-1, -1]}, {'agent': [-1, -1], 'verb': [11, 11], 'object': [9, 9], 'begin_index': 9, 'end_index': 11, 'ADV': [0, 7]}], 'condition': False, 'action': True, 'sw_lane': [], 'avo_result_index': 8, 'node_text': ['the', 'part', 'is', 'reserved'], 'complete_sent': ['the', 'part', 'is', 'reserved'], 'coref_ids': [4], 'coref_spans': {4: [[9, 9]]}}]
-# # would use it like this: result = process_conditional_structure(avo_sents[7:]) for demo purposes it is as below.
-# result = process_conditional_structure(avo_sents)
-
-
-def test_condition_extraction(test_text: str):
+def test_condition_extraction(test_text: str) -> list:
     ppl = Pipeline()
     srl = sem_rol.SemanticRoleLabelling()
     srl_result = srl.semrol_text(test_text)
@@ -1007,7 +1004,17 @@ def test_condition_extraction(test_text: str):
     return [condition_res, avo_sents]
 
 
-def run_latest_demo(test_text: str):
+def test_model_building(model_name: str, avo_sents: list) -> None:
+    """Test the model building process."""
+    start = time.time()
+    ppl = Pipeline()
+    ppl.create_model_using_avo(model_name, avo_sents)
+    end = time.time()
+    print("time elapsed {} (seconds)".format(end - start))
+    return
+
+
+def run_latest_demo(name: str, test_text: str, post_model: bool) -> list:
     start = time.time()
     # test_text = input_texts[3]
     ppl = Pipeline()
@@ -1026,4 +1033,6 @@ def run_latest_demo(test_text: str):
     ppl.conditional_entailment(avo_sents)
     end = time.time()
     print("time elapsed {}".format(end - start))
+    if post_model:
+        ppl.create_model_using_avo(name, avo_sents)
     return avo_sents
