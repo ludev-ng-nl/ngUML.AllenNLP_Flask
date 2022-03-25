@@ -33,7 +33,7 @@ def predict():
     if flask.request.method == "GET":
         return handle_get_request("Semantic Role Labelling")
     data = request.get_json()
-    if isinstance(data) != list:
+    if not isinstance(data, list):
         return "Posted data is not a list, provide a list with items that are dicts of sentences."
     if len(data) < 1:
         return "List is empty, provide a list with items that are dicts of sentences."
