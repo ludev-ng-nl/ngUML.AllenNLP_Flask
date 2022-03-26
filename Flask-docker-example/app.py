@@ -18,8 +18,8 @@ def run_test():
     """Run the latest demo for testing purposes."""
     text_support = text_sup.TextSupport()
     input_texts = text_support.get_all_texts_activity("test-data")
-    test_text = input_texts[2]
-    avo_sents = run_latest_demo("name", test_text, post_model=False)
+    test_text = input_texts[4]
+    avo_sents = run_latest_demo("order_coref_test", test_text, post_model=False)
     return "Finished correctly"
 
 

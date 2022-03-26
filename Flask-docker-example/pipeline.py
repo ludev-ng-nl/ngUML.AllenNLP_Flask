@@ -429,7 +429,14 @@ class Pipeline:
         return results
 
     def select_condition_results_entail(self, avo_sents_subset: list) -> list:
-        """Select conditional results based on entailment."""
+        """Select conditional results based on entailment.
+
+        Args:
+            - avo_sents_subset (list): a set of avo_sents we need to consider.
+
+        Returns:
+            - results (list): avo_sents we need to consider as conditional structure
+        """
         first_condition = avo_sents_subset[0]
         results = []
         if not first_condition["condition"]:
@@ -659,7 +666,25 @@ class Pipeline:
         self, avo_sent: dict, decision_nodes: dict, decision_node: list
     ) -> list:
         """Process one condition and add to the according parts.
-        TODO: just testing
+
+        Description:
+            Process one condition and check if there is a connection in the
+            conditional entail set that states a contradiction. If this is
+            the case we add the sentence in combination with a 'd' to the
+            decision_nodes which we use to identify if a condition was
+            earlier here. We do the same for coreference clusters.
+            If we find a connection we return a connection.
+
+        Args:
+            - avo_sent (dict): avo_sent we consider to be a condition.
+            - decision_nodes (dict): where we keep all the found conditions
+                to be able to search them.
+            - decision_node (list): the created decision_node to be able
+                to reference the node and make connections to it.
+
+        Returns:
+            - to_return_node (None or list): with the decision node data.
+            - coref_nodes (list): with the found coref nodes.
         """
         to_return_node = None
         if "start_cond_entail" in avo_sent:
@@ -683,30 +708,26 @@ class Pipeline:
                 if result[0] == "contradiction":
                     decision_key = "c" + str(result[1])
                     if decision_key in decision_nodes:
-                        # Decision key should be there, but there are situations when it is not.
+                        # Decision key should be there, but there are situations
+                        #  when it is not.
                         coref_nodes.append(decision_nodes[decision_key])
         return [to_return_node, coref_nodes]
-        # we have a condition
-        #
-        # if we have the start of a condition && a contradiction
-        # add to the dict of decision nodes.
-        # with the id and a 'd' to specify it is a decision
-        # elif receive && a contradiction
-        # search decision nodes
-        # else
-        # do nothing as we don't have a contradiction
-
-        # if we have a 'start_cond_coref_entail'
-        # for each result in here
-        # if contradiction
-        # add decision node to decision nodes with label 'c' + id
-        # elif we have a receive_cond_coref_ential && contradiction
-        #  search decision nodes
-        # search_id = 'c' + str()
-        # prev node = decision_nodes[]
 
     def check_for_contradiction_in_coref(self, avo_sent: dict) -> list:
-        """Check if a contradiction exists in the list of conditional coreference entailments."""
+        """Check if a contradiction exists in the list of conditional coreference entailments.
+
+        Description:
+            Check if there is not a 'normal' conditional entailment. By
+            checking the contradiction in the receive and start
+            cond_entail lists. Then we check the coref lists.
+            If there is a receive in there and if it is a contradiction
+            , if that is the case we return the key.
+        Args:
+            - avo_sent (dict): the avo_sent we are considering
+
+        Returns:
+            - found_contra_coref_keys (list): keys of the coreference nodes.
+        """
         possible_coref = False
         if "receive_cond_entail" in avo_sent:
             if avo_sent["receive_cond_entail"] != "contradiction":
@@ -728,6 +749,51 @@ class Pipeline:
 
         return found_contra_coref_keys
 
+    def create_coreference_structure(
+        self,
+        activity_id: int,
+        previous_node: str,
+        avo_sent: dict,
+        found_contra_coref_keys: list,
+        decision_nodes: dict,
+    ):
+        """Create a structure for the coreference.
+
+        Description:
+            Processing the coreference keys and the structure
+            that is part of that. Mostly references to earlier
+            defined conditional nodes and adding merge nodes.
+
+        Args:
+        """
+        merge_node = self.actInt.create_add_node(
+            activity_id, "Merge", {"name": "MergeNode"}
+        )
+        self.actInt.create_connection(activity_id, previous_node, merge_node, {})
+        guard = " ".join(avo_sent["complete_sent"])
+        previous_node = merge_node
+        for key in found_contra_coref_keys:
+            coref_node = decision_nodes[key]
+            self.actInt.create_connection(
+                activity_id, coref_node, merge_node, {"guard": guard}
+            )
+        # do we need to do something about adding the nodes to the decision_nodes
+        # chose to just add the final merge node.
+        condition_result = self.process_single_condition(
+            avo_sent, decision_nodes, previous_node
+        )
+        previous_node = merge_node
+        conditional_start_node = None
+        return [previous_node, conditional_start_node]
+
+    def replace_node_from_list(
+        self, nodes_list: list, previous_node_id: str, new_node_id: str
+    ) -> list:
+        """Replace a node in a list based on the previous node."""
+        pos = nodes_list.index(previous_node_id)
+        nodes_list[pos] = new_node_id
+        return nodes_list
+
     def process_conditional_structure(
         self,
         avo_sents_sub_set: list,
@@ -742,6 +808,8 @@ class Pipeline:
         # keep track of the merge nodes (action nodes)
         # keep track of previous node and node type
         nodes_to_be_merged = []
+        nodes_to_be_merged_dict = {}
+        node_merge_index = 0
         previous_type = "decision"
         # add conditional node & link to previous node.
         # keep track of the conditional node.
@@ -752,24 +820,14 @@ class Pipeline:
 
         if found_contra_coref_keys:
             # create coreference - condition node - for the first node
-            merge_node = self.actInt.create_add_node(
-                activity_id, "Merge", {"name": "MergeNode"}
+            previous_node, conditional_start_node = self.create_coreference_structure(
+                activity_id,
+                previous_node,
+                conditional_results[0],
+                found_contra_coref_keys,
+                decision_nodes,
             )
-            self.actInt.create_connection(activity_id, previous_node, merge_node, {})
-            guard = " ".join(conditional_results[0]["complete_sent"])
-            previous_node = merge_node
-            for key in found_contra_coref_keys:
-                coref_node = decision_nodes[key]
-                self.actInt.create_connection(
-                    activity_id, coref_node, merge_node, {"guard": guard}
-                )
-            # do we need to do something about adding the nodes to the decision_nodes
-            # chose to just add the final merge node.
-            condition_result = self.process_single_condition(
-                conditional_results[0], decision_nodes, previous_node
-            )
-            previous_node = merge_node
-            conditional_start_node = None
+            guard = ""
         else:
             # process normal condition - for the first node
             condition_result = self.create_condition(
@@ -781,6 +839,11 @@ class Pipeline:
             condition_result = self.process_single_condition(
                 conditional_results[0], decision_nodes, conditional_start_node
             )
+            nodes_to_be_merged_dict[node_merge_index] = {
+                "node_id": conditional_start_node,
+                "guard": guard,
+            }
+            node_merge_index += 1
 
         if len(conditional_results) == 1:
             # handle if there is only one.
@@ -825,11 +888,27 @@ class Pipeline:
                             previous_node = action[0]
                             previous_type = "action"
                             # add to last node
+                            nodes_to_be_merged_dict[node_merge_index] = {
+                                "node_id": action[0],
+                                "guard": "",
+                            }
+                            node_merge_index += 1
                             nodes_to_be_merged.append(action[0])
                     else:
+                        # this process seems to be too small.
                         condition_res = self.process_single_condition(
-                            avo_sent, decision_nodes, previous_node
+                            avo_sent, decision_nodes, conditional_start_node
                         )
+                        # we assume that the condition is followed by an action, in the
+                        # case of 'the order is approved', that is not the case. Therefore
+                        # it does not get a correct line.
+                        # add to merge node with guard
+                        nodes_to_be_merged_dict[node_merge_index] = {
+                            "node_id": conditional_start_node,
+                            "guard": guard,
+                        }
+                        node_merge_index += 1
+                        # nodes_to_be_merged.append(conditional_start_node)
                     continue
                 else:
                     # avo_sent['action'] or other.
@@ -838,17 +917,36 @@ class Pipeline:
                         action = self.create_action_following_condition(
                             avo_sent, activity_id, previous_node, guard
                         )
+                        if (
+                            node_merge_index - 1 in nodes_to_be_merged_dict
+                            and previous_node
+                            == nodes_to_be_merged_dict[node_merge_index - 1]["node_id"]
+                        ):
+                            # we have a decision node in the nodes to be merged, so replace it.
+                            nodes_to_be_merged_dict[node_merge_index - 1] = {
+                                "node_id": action[0],
+                                "guard": "",
+                            }
+                            # nodes_to_be_merged = self.replace_node_from_list(nodes_to_be_merged,previous_node_id=previous_node,new_node_id=action[0])
+                        else:
+                            # nodes_to_be_merged.append(action[0])
+                            nodes_to_be_merged_dict[node_merge_index] = {
+                                "node_id": action[0],
+                                "guard": "",
+                            }
+                            node_merge_index += 1
                         previous_node = action[0]
                         previous_type = "action"
-                        # add to last node
-                        nodes_to_be_merged.append(action[0])
                     else:
                         action = self.create_action(
                             avo_sent, activity_id, previous_node
                         )
                         # if last was an action -> and not condition -> replace the last node.
-                        pos = nodes_to_be_merged.index(previous_node)
-                        nodes_to_be_merged[pos] = action[0]
+                        # nodes_to_be_merged = self.replace_node_from_list(nodes_to_be_merged,previous_node_id=previous_node,new_node_id=action[0])
+                        nodes_to_be_merged_dict[node_merge_index - 1] = {
+                            "node_id": action[0],
+                            "guard": "",
+                        }
                         previous_node = action[0]
                         previous_type = "action"
                     # TODO check for termination in the node
@@ -863,14 +961,20 @@ class Pipeline:
         )
         # create merge node
         print(nodes_to_be_merged)
-        for node in nodes_to_be_merged:
+        for node_merge_index_key in nodes_to_be_merged_dict:
             # create connection to merge node
+            node_data = nodes_to_be_merged_dict[node_merge_index_key]
             print(
                 "activity_id {}, node {}, merge_node {}".format(
-                    activity_id, node, merge_node
+                    activity_id, node_data["node_id"], merge_node
                 )
             )
-            self.actInt.create_connection(activity_id, node, merge_node, {})
+            self.actInt.create_connection(
+                activity_id,
+                node_data["node_id"],
+                merge_node,
+                {"guard": node_data["guard"]},
+            )
         # return the merge node.
         return [merge_node, len(conditional_results)]
 
