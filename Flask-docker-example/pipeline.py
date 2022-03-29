@@ -28,7 +28,7 @@ class Pipeline:
         self.triples = []
         self.action_nodes = []
         self.doubles = []
-        self.actInt = actInt.ActivityInterface()
+        self.act_interface = actInt.ActivityInterface()
         self.srl_output = []
 
     def get_text(self) -> None:
@@ -127,46 +127,50 @@ class Pipeline:
 
     def create_data_from_text(self, activity_name):
         """Create an activity model from text with the triples."""
-        self.actInt.clear_data()
-        act = self.actInt.create_activity(activity_name, {})
-        act_id = self.actInt.create_activity_server(act)
+        self.act_interface.clear_data()
+        act = self.act_interface.create_activity(activity_name, {})
+        act_id = self.act_interface.create_activity_server(act)
         act["type"] = "retype-activity"
-        self.actInt.changes.append(act)
+        self.act_interface.changes.append(act)
         conc_triples = self.concat_triples()
-        node_id = self.actInt.create_add_node(act_id, "Initial", {"name": "Initial"})
+        node_id = self.act_interface.create_add_node(
+            act_id, "Initial", {"name": "Initial"}
+        )
         for triple in conc_triples:
-            node_id = self.actInt.create_add_node(act_id, "Action", {"name": triple})
-        node_id = self.actInt.create_add_node(
+            node_id = self.act_interface.create_add_node(
+                act_id, "Action", {"name": triple}
+            )
+        node_id = self.act_interface.create_add_node(
             act_id, "ActivityFinal", {"name": "Final"}
         )
-        node_keys = [key for key in self.actInt.nodes]
+        node_keys = [key for key in self.act_interface.nodes]
         for index, item in enumerate(node_keys):
             from_node = item
             if index < len(node_keys) - 1:
                 to_node = node_keys[index + 1]
-                self.actInt.create_connection(act_id, from_node, to_node, {})
-        dat = self.actInt.post_data()
+                self.act_interface.create_connection(act_id, from_node, to_node, {})
+        dat = self.act_interface.post_data()
         return dat
 
     def create_data_from_doubles(self, activity_name):
         """create an activity with nodes based on doubles."""
-        self.actInt.clear_data()
-        act = self.actInt.create_activity(activity_name, {})
-        act_id = self.actInt.create_activity_server(act)
+        self.act_interface.clear_data()
+        act = self.act_interface.create_activity(activity_name, {})
+        act_id = self.act_interface.create_activity_server(act)
         act["type"] = "retype-activity"
-        self.actInt.changes.append(act)
+        self.act_interface.changes.append(act)
         conc_doubles = self.concat_doubles()
-        self.actInt.create_add_node(act_id, "Initial", {"name": "Initial"})
+        self.act_interface.create_add_node(act_id, "Initial", {"name": "Initial"})
         for triple in conc_doubles:
-            self.actInt.create_add_node(act_id, "Action", {"name": triple})
-        self.actInt.create_add_node(act_id, "ActivityFinal", {"name": "Final"})
-        node_keys = [key for key in self.actInt.nodes]
+            self.act_interface.create_add_node(act_id, "Action", {"name": triple})
+        self.act_interface.create_add_node(act_id, "ActivityFinal", {"name": "Final"})
+        node_keys = [key for key in self.act_interface.nodes]
         for index, item in enumerate(node_keys):
             from_node = item
             if index < len(node_keys) - 1:
                 to_node = node_keys[index + 1]
-                self.actInt.create_connection(act_id, from_node, to_node, {})
-        dat = self.actInt.post_data()
+                self.act_interface.create_connection(act_id, from_node, to_node, {})
+        dat = self.act_interface.post_data()
         return dat
 
     def get_activity_from_text(self, text, activity_name):
@@ -183,9 +187,11 @@ class Pipeline:
         self.semantic_role_labelling()
         self.get_action_nodes()
         dat = self.create_data_from_text(activity_name)
-        # result = requests.post(self.actInt.post_url,json=dat)
+        # result = requests.post(self.act_interface.post_url,json=dat)
         # return result
-        return self.actInt.post_activity_data_to_server(self.actInt.post_url, dat)
+        return self.act_interface.post_activity_data_to_server(
+            self.act_interface.post_url, dat
+        )
 
     def get_activity_from_text_doubles(self, text, activity_name):
         """Generate activity model from text and post to backend."""
@@ -194,7 +200,9 @@ class Pipeline:
         # add coref here? - coref changes the actors. So after that you can get the doubles.
         self.get_doubles()
         dat = self.create_data_from_doubles(activity_name)
-        return self.actInt.post_activity_data_to_server(self.actInt.post_url, dat)
+        return self.act_interface.post_activity_data_to_server(
+            self.act_interface.post_url, dat
+        )
 
     def get_list_of_text(self):
         """Create list of words for each sentence."""
@@ -247,7 +255,8 @@ class Pipeline:
         """Tag condition or action if that is in the avo_result
 
         Args:
-           - agent_verb_object_results (list): a list of all agent_verb_object results were extracted from the text.
+           - agent_verb_object_results (list): a list of all agent_verb_object results were
+                extracted from the text.
            - condition_actions_list (dict): a list of all condition and actions found in the text.
 
         Returns:
@@ -308,22 +317,20 @@ class Pipeline:
 
     def create_activity_server(self, activity_name: str) -> int:
         """Create an activity node on the server and return it's id."""
-        activity = self.actInt.create_activity(activity_name, {})
-        activity_id = self.actInt.create_activity_server(activity)
+        activity = self.act_interface.create_activity(activity_name, {})
+        activity_id = self.act_interface.create_activity_server(activity)
         activity["type"] = "retype-activity"
-        self.actInt.changes.append(activity)
+        self.act_interface.changes.append(activity)
         return activity_id
 
     def create_condition(self, avo: dict, activity_id: int, previous_node: str) -> list:
         """Create a conditional node and return node id and guard."""
-        decision = self.actInt.create_add_node(
+        decision = self.act_interface.create_add_node(
             activity_id, "Decision", {"name": "ConditionNode"}
         )
-        self.actInt.create_connection(activity_id, previous_node, decision, {})
+        self.act_interface.create_connection(activity_id, previous_node, decision, {})
         previous_node = decision
         guard = " ".join(avo["complete_sent"])
-        # act_final = self.actInt.create_add_node(activity_id,'ActivityFinal',{'name':'Final'})
-        # self.actInt.create_connection(activity_id,decision,act_final,{"guard":'[else]'})
         return [previous_node, guard]
 
     def create_action_following_condition(
@@ -335,8 +342,10 @@ class Pipeline:
             swimming_lane = " ".join(avo["sw_lane_text"])
             swimming_lane = "[" + swimming_lane.rstrip() + "]"
         node_name = swimming_lane + " ".join(avo["node_text"])
-        action = self.actInt.create_add_node(activity_id, "Action", {"name": node_name})
-        self.actInt.create_connection(
+        action = self.act_interface.create_add_node(
+            activity_id, "Action", {"name": node_name}
+        )
+        self.act_interface.create_connection(
             activity_id, previous_node, action, {"guard": guard}
         )
         previous_node = action
@@ -349,8 +358,10 @@ class Pipeline:
             swimming_lane = " ".join(avo["sw_lane_text"])
             swimming_lane = "[" + swimming_lane.rstrip() + "]"
         node_name = swimming_lane + " ".join(avo["node_text"])
-        action = self.actInt.create_add_node(activity_id, "Action", {"name": node_name})
-        self.actInt.create_connection(activity_id, previous_node, action, {})
+        action = self.act_interface.create_add_node(
+            activity_id, "Action", {"name": node_name}
+        )
+        self.act_interface.create_connection(activity_id, previous_node, action, {})
         previous_node = action
         return [previous_node]
 
@@ -358,9 +369,6 @@ class Pipeline:
         """Select the conditional results from the avo_sents."""
         index = 0
         results = []
-        # first_conditional_sent = None
-        # entailmentInterface = entail.Entailment()
-        # condition_res = self.process_single_condition(conditional_results[0],decision_nodes,conditional_start_node)
         coref_ids = set()
         if "coref_ids" in avo_sents[0]:
             coref_ids = set(avo_sents[0]["coref_ids"])
@@ -511,15 +519,18 @@ class Pipeline:
         """Create premise hypothesis dict for each avo_condition entailment set.
 
         Description:
-            For the entailment process we need to transform the avo_condition entailment set into a combination of premise and hypothesis.
-            Based on the avo_sent id we build the premise and hypothesis combination.
+            For the entailment process we need to transform the avo_condition entailment
+            set into a combination of premise and hypothesis. Based on the avo_sent id
+            we build the premise and hypothesis combination.
 
         Args:
             - avo_sents (list): all avo_sents
-            - avo_condition_entail_sets (list): the sets we will entail within them an avo_sent id. [int,int] = [premise_avo,hypothesis_avo]
+            - avo_condition_entail_sets (list): the sets we will entail within them an
+                avo_sent id. [int,int] = [premise_avo,hypothesis_avo]
 
         Returns:
-            - premise_hypo_list (list): a list of all the premise and hypothesis combinations for the given sentences.
+            - premise_hypo_list (list): a list of all the premise and hypothesis
+                combinations for the given sentences.
         """
         premise_hypo_list = []
         for avo_condition_entail_set in avo_condition_entail_sets:
@@ -538,12 +549,14 @@ class Pipeline:
         """Tag all the conditional entailment structures in avo_sents.
 
         Description:
-            Tag all avo_sents with start conditional entail data and a receiving conditional entail data sentence.
-            The data we will be adding is the [label, index of the entailment, index of the receiving avo]
+            Tag all avo_sents with start conditional entail data and a receiving
+            conditional entail data sentence. The data we will be adding is the
+            [label, index of the entailment, index of the receiving avo]
 
         Args:
             - avo_sents (list): the avo sents where we will add the data.
-            - condition_avo_entail (list): the conditional_avo indexes per pair we will use to tag in avo_sents.
+            - condition_avo_entail (list): the conditional_avo indexes per pair we will use
+                to tag in avo_sents.
             - conditional_entailment_results (list): the results we will be adding to avo_sents
 
         Returns:
@@ -573,13 +586,16 @@ class Pipeline:
         """Tag all the conditional coref entailment structures in avo_sents.
 
         Description:
-            Tag all avo_sents with start conditional entail data and a receiving conditional entail data sentence.
-            The data we will be adding is the [label, index of the entailment, index of the receiving avo]
+            Tag all avo_sents with start conditional entail data and a receiving conditional
+            entail data sentence. The data we will be adding is the [label, index of the
+            entailment, index of the receiving avo]
 
         Args:
             - avo_sents (list): the avo sents where we will add the data.
-            - condition_coref_avo_entail (list): the conditional_avo indexes per pair we will use to tag in avo_sents.
-            - conditional_coref_entailment_results (list): the results we will be adding to avo_sents
+            - condition_coref_avo_entail (list): the conditional_avo indexes per pair we
+                will use to tag in avo_sents.
+            - conditional_coref_entailment_results (list): the results we will be adding
+                to avo_sents
 
         Returns:
             - None
@@ -606,7 +622,8 @@ class Pipeline:
                 ]
 
     def conditional_entailment(self, avo_sents: list) -> None:
-        """Entails all conditional sentences and marks them using a entailment id if there is a contradiction."""
+        """Entails all conditional sentences and marks them using a entailment id
+        if there is a contradiction."""
         # do for sequential conditions
         # do for all conditions with a coref.
         # tag in avo_sents which can then be used in the process conditional structure.
@@ -738,15 +755,15 @@ class Pipeline:
 
         Args:
         """
-        merge_node = self.actInt.create_add_node(
+        merge_node = self.act_interface.create_add_node(
             activity_id, "Merge", {"name": "MergeNode"}
         )
-        self.actInt.create_connection(activity_id, previous_node, merge_node, {})
+        self.act_interface.create_connection(activity_id, previous_node, merge_node, {})
         guard = " ".join(avo_sent["complete_sent"])
         previous_node = merge_node
         for key in found_contra_coref_keys:
             coref_node = decision_nodes[key]
-            self.actInt.create_connection(
+            self.act_interface.create_connection(
                 activity_id, coref_node, merge_node, {"guard": guard}
             )
         # do we need to do something about adding the nodes to the decision_nodes
@@ -822,10 +839,10 @@ class Pipeline:
             if found_contra_coref_keys:
                 return [previous_node, len(conditional_results)]
             else:
-                merge_node = self.actInt.create_add_node(
+                merge_node = self.act_interface.create_add_node(
                     activity_id, "Merge", {"name": "MergeNode"}
                 )
-                self.actInt.create_connection(
+                self.act_interface.create_connection(
                     activity_id, previous_node, merge_node, {"guard": guard}
                 )
                 # return the merge node.
@@ -900,9 +917,7 @@ class Pipeline:
                                 "node_id": action[0],
                                 "guard": "",
                             }
-                            # nodes_to_be_merged = self.replace_node_from_list(nodes_to_be_merged,previous_node_id=previous_node,new_node_id=action[0])
                         else:
-                            # nodes_to_be_merged.append(action[0])
                             nodes_to_be_merged_dict[node_merge_index] = {
                                 "node_id": action[0],
                                 "guard": "",
@@ -915,7 +930,6 @@ class Pipeline:
                             avo_sent, activity_id, previous_node
                         )
                         # if last was an action -> and not condition -> replace the last node.
-                        # nodes_to_be_merged = self.replace_node_from_list(nodes_to_be_merged,previous_node_id=previous_node,new_node_id=action[0])
                         nodes_to_be_merged_dict[node_merge_index - 1] = {
                             "node_id": action[0],
                             "guard": "",
@@ -929,7 +943,7 @@ class Pipeline:
                 pass
         # everything done? -> create a merge node and a connection from each merge nodes.
         # TODO What happens in the case of a coref line.
-        merge_node = self.actInt.create_add_node(
+        merge_node = self.act_interface.create_add_node(
             activity_id, "Merge", {"name": "MergeNode"}
         )
         # create merge node
@@ -942,7 +956,7 @@ class Pipeline:
                     activity_id, node_data["node_id"], merge_node
                 )
             )
-            self.actInt.create_connection(
+            self.act_interface.create_connection(
                 activity_id,
                 node_data["node_id"],
                 merge_node,
@@ -955,9 +969,9 @@ class Pipeline:
         self, activity_name: str, agent_verb_object_results: list
     ) -> None:
         """Create activity model based on agent_verb_object results."""
-        self.actInt.clear_data()
+        self.act_interface.clear_data()
         activity_id = self.create_activity_server(activity_name)
-        node_id = self.actInt.create_add_node(
+        node_id = self.act_interface.create_add_node(
             activity_id, "Initial", {"name": "Initial"}
         )
         previous_node = node_id
@@ -984,8 +998,6 @@ class Pipeline:
                 #     avo_index += processed_results - 2
             elif avo["action"]:
                 # deal with action that follows a condition
-                # cond_action_result = self.create_action_following_condition(avo,activity_id,previous_node,guard)
-                # previous_node = cond_action_result[0]
                 if agent_verb_object_results[avo_index - 1]["condition"]:
                     # consider the previous avo_sent, we might have missed this action,
                     # which should not be the case.
@@ -997,7 +1009,8 @@ class Pipeline:
                     avo_index + 1 <= len(agent_verb_object_results) - 1
                     and agent_verb_object_results[avo_index + 1]["condition"]
                 ):
-                    # consider the next one. We probably have a mix up. So we change them around and try to parse the conditional structure.
+                    # consider the next one. We probably have a mix up. So we change
+                    # them around and try to parse the conditional structure.
                     avo_copy = agent_verb_object_results[:]
                     # switch them around.
                     avo_copy[avo_index], avo_copy[avo_index + 1] = (
@@ -1020,7 +1033,8 @@ class Pipeline:
                         "id {}, sent {}".format(avo_index, " ".join(avo["node_text"]))
                     )
                 # check previous -> not a condition. Then we should consider the next one.
-                # if the next one is an action. process condition action, but with the two turned around.
+                # if the next one is an action. process condition action,
+                # but with the two turned around.
             else:
                 # normal action.
                 action_result = self.create_action(avo, activity_id, previous_node)
@@ -1028,13 +1042,15 @@ class Pipeline:
             if avo_index >= len(agent_verb_object_results) - 1:
                 break
             avo_index += 1
-        final = self.actInt.create_add_node(
+        final = self.act_interface.create_add_node(
             activity_id, "ActivityFinal", {"name": "Final"}
         )
-        self.actInt.create_connection(activity_id, previous_node, final, {})
+        self.act_interface.create_connection(activity_id, previous_node, final, {})
         # merge nodes
-        data = self.actInt.post_data()
-        return self.actInt.post_activity_data_to_server(self.actInt.post_url, data)
+        data = self.act_interface.post_data()
+        return self.act_interface.post_activity_data_to_server(
+            self.act_interface.post_url, data
+        )
 
     def get_noun_chunk(self, text_array: list) -> list:
         """Gets the nounchunk for a particular text."""
@@ -1046,7 +1062,8 @@ class Pipeline:
     def get_agents_and_tag_swimlanes_avo_sents(
         self, agent_verb_object_sentences: list
     ) -> list:
-        """Gets all the agents from the agent_verb_object_sentences and addes the swimminglane keys and words."""
+        """Gets all the agents from the agent_verb_object_sentences and addes the
+        swimminglane keys and words."""
         agents = []
         for avo_sentence_index, avo_sentence in enumerate(agent_verb_object_sentences):
             for avo_result_index, avo_result in enumerate(avo_sentence["avo_results"]):
@@ -1055,7 +1072,8 @@ class Pipeline:
                     begin_index = avo_result["agent"][0] - avo_sentence["begin_index"]
                     end_index = avo_result["agent"][1] - avo_sentence["begin_index"]
                     avo_sentence["sw_lane"] = [begin_index, end_index]
-                    # here we select the swim lane text. based on the first found agent TODO there might be better actors.
+                    # here we select the swim lane text. based on the first found agent
+                    #  TODO there might be better actors.
                     avo_sentence["sw_lane_text"] = self.get_noun_chunk(
                         avo_sentence["action_text"][begin_index : end_index + 1]
                     )
@@ -1105,6 +1123,7 @@ TEST_TEXT = (
 
 
 def test_condition_extraction(test_text: str) -> list:
+    """Method to test the condition extraction process."""
     ppl = Pipeline()
     srl = sem_rol.SemanticRoleLabelling()
     srl_result = srl.semrol_text(test_text)
@@ -1125,8 +1144,8 @@ def test_model_building(model_name: str, avo_sents: list) -> None:
 
 
 def run_latest_demo(name: str, test_text: str, post_model: bool) -> list:
+    """Method to run the latest demo"""
     start = time.time()
-    # test_text = input_texts[3]
     ppl = Pipeline()
     srl = sem_rol.SemanticRoleLabelling()
     srl_result = srl.semrol_text(test_text)
@@ -1134,7 +1153,7 @@ def run_latest_demo(name: str, test_text: str, post_model: bool) -> list:
     avo_sents = srl.get_avo_for_sentences(srl_result)
     avo_sents = ppl.tag_conditions_actions_in_avo_results(avo_sents, condition_res[0])
     coref = ppl.coreference_text(test_text)
-    agents = ppl.get_agents_and_tag_swimlanes_avo_sents(avo_sents)
+    ppl.get_agents_and_tag_swimlanes_avo_sents(avo_sents)
     cor = corefer.Coreference()
     cor.fill_swimming_lanes_and_coref_sents(avo_sents, coref[0], coref[1])
     cor.tag_clusters_avo_sents(avo_sents, coref[1], coref[2])
