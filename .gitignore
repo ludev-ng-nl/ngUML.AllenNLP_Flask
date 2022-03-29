@@ -144,3 +144,5 @@ cython_debug/
 
 /allen_nlp_entailment/allen_nlp_cache
 /stanza
+
+/Flask-docker-example/avo_test_data
