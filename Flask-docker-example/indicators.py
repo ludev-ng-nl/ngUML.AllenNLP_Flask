@@ -5,7 +5,7 @@ friedrich_conditional_indicators = [
     "in the case of",
     "in case",
     "for the case",
-    "whereas",
+    # "whereas",
     "optionally",
 ]
 

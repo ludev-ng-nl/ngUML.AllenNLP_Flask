@@ -719,99 +719,128 @@ def orchestration_condition_sentence(
     """
     condition_action_results = []
     # loop through the cond index
-    for conditionalIndicator in sen_cond_data:
+    for conditional_indicator in sen_cond_data:
         # If we have a conditional indicator with multiple words.
-        condList = conditionalIndicator.split(" ")
-        condEndIndex = len(condList) - 1
+        cond_list = conditional_indicator.split(" ")
+        cond_end_index = len(cond_list) - 1
 
-        sentWords = [x.lower() for x in result[sent_index]["words"]]
+        sent_words = [x.lower() for x in result[sent_index]["words"]]
         try:
-            senBeginIndex = sentWords.index(condList[0])
-            senEndIndex = sentWords.index(condList[condEndIndex])
+            sen_begin_index = sent_words.index(cond_list[0])
+            sen_end_index = sent_words.index(cond_list[cond_end_index])
         except:
             print(
                 "Could not find condition in sentence, while it should be there. sen_index: {}".format(
                     sent_index
                 )
             )
-            senBeginIndex = -1
-            senEndIndex = -1
-        if senBeginIndex == -1 or senEndIndex == -1:
+            sen_begin_index = -1
+            sen_end_index = -1
+        if sen_begin_index == -1 or sen_end_index == -1:
             return condition_action_results
-        cond_index_list = [senBeginIndex, senEndIndex]
+        cond_index_list = [sen_begin_index, sen_end_index]
         # Check for adverbial
         adverbial_data = get_adverbial(cond_index_list, sent_index, result)
+        action_in_front = False
         if adverbial_data:
-            advSent = adverbial_data[1]
-            beginCond = adverbial_data[2]
-            endCond = adverbial_data[3]
+            adv_sent = adverbial_data[1]
+            begin_cond = adverbial_data[2]
+            end_cond = adverbial_data[3]
             # Check for action from point
-            advActionData = get_srl_within_range(
-                advSent, endCond, True, result[sent_index]["verbs"]
+            adv_action_data = get_srl_within_range(
+                adv_sent, end_cond, True, result[sent_index]["verbs"]
             )
-            if advActionData[0] == -1:
+            if adv_action_data[0] == -1:
                 # Check for action in front of index
-                condLength = cond_index_list[1] - cond_index_list[0] + 1
-                advActionData = get_srl_within_range(
-                    advSent, beginCond - condLength, False, result[sent_index]["verbs"]
+                cond_length = cond_index_list[1] - cond_index_list[0] + 1
+                adv_action_data = get_srl_within_range(
+                    adv_sent,
+                    begin_cond - cond_length,
+                    False,
+                    result[sent_index]["verbs"],
                 )
-            action = [sent_index, advSent, advActionData[0], advActionData[1]]
+                if adv_action_data:
+                    action_in_front = True
+            if conditional_indicator.lower() in empty_conditional_indicators:
+                # we tag the condition with the action, to make sure it
+                # intersects and we skip the condition as it is empty.
+                action_begin_index = adv_action_data[0]
+                if end_cond < action_begin_index:
+                    # if the next part is the start of the condition
+                    if end_cond + 1 == action_begin_index:
+                        # we add one to the end of the conditional indicator.
+                        adverbial_data[3] += 1
+                        adverbial_data.append(
+                            {"conditional_keyword": conditional_indicator.lower()}
+                        )
+            action = [sent_index, adv_sent, adv_action_data[0], adv_action_data[1]]
+            if action_in_front:
+                action.append({"action_found_in_front": True})
             condition_action_results.append([adverbial_data, action])
         # If not adverbial check for SRL condition
         else:
-            srlData = get_condition_SRL_after_indicator(
+            srl_data = get_condition_SRL_after_indicator(
                 cond_index_list, sent_index, result
             )
-            if srlData:
+            if srl_data:
                 # Check for action from end of condition
-                srlSent = srlData[1]
-                beginCond = srlData[2]
-                endCond = srlData[3]
+                srl_sent = srl_data[1]
+                begin_cond = srl_data[2]
+                end_cond = srl_data[3]
                 # select possible sentences
                 conditional_keyword = " ".join(
-                    result[sent_index]["words"][srlData[4] : srlData[5] + 1]
+                    result[sent_index]["words"][srl_data[4] : srl_data[5] + 1]
                 )
                 if conditional_keyword in empty_conditional_indicators:
                     # We have an empty conditional indicator, so we move the found condition to the action.
-                    action = [sent_index, srlSent, beginCond, endCond]
+                    action = [sent_index, srl_sent, begin_cond, end_cond]
                     # replace the condition with something empty, such that we don't get a text
-                    srlData[2] = srlData[4]
+                    srl_data[2] = srl_data[4]
                     # subtracting one to create an empty list when building the guard.
-                    srlData[3] = srlData[5]
+                    srl_data[3] = srl_data[5]
+                    srl_data.append(
+                        {"conditional_keyword": conditional_indicator.lower()}
+                    )
+
                 else:
                     # consider the one after the end and + 1 if there is a srl result
-                    nextCond = [
-                        x["tags"][endCond + 1] for x in result[sent_index]["verbs"]
+                    next_cond = [
+                        x["tags"][end_cond + 1] for x in result[sent_index]["verbs"]
                     ]
-                    bArg = [
-                        [index, x] for index, x in enumerate(nextCond) if "B-ARG" in x
+                    begin_arg = [
+                        [index, x] for index, x in enumerate(next_cond) if "B-ARG" in x
                     ]
-                    if bArg:
-                        actionResult = get_action_srl_results(
-                            bArg, endCond, result[sent_index]["verbs"]
+                    if begin_arg:
+                        action_result = get_action_srl_results(
+                            begin_arg, end_cond, result[sent_index]["verbs"]
                         )
-                        action = [sent_index, srlSent, actionResult[0], actionResult[1]]
+                        action = [
+                            sent_index,
+                            srl_sent,
+                            action_result[0],
+                            action_result[1],
+                        ]
                     else:
-                        if endCond + 2 < len(result[sent_index]["words"]):
+                        if end_cond + 2 < len(result[sent_index]["words"]):
                             # make sure we don't go further than the index of the sentence
-                            nextCond = [
-                                x["tags"][endCond + 2]
+                            next_cond = [
+                                x["tags"][end_cond + 2]
                                 for x in result[sent_index]["verbs"]
                             ]
-                            bArg = [
+                            begin_arg = [
                                 [index, x]
-                                for index, x in enumerate(nextCond)
+                                for index, x in enumerate(next_cond)
                                 if "B-ARG" in x
                             ]
-                            if bArg:
-                                actionResult = get_action_srl_results(
-                                    bArg, endCond, result[sent_index]["verbs"]
+                            if begin_arg:
+                                action_result = get_action_srl_results(
+                                    begin_arg, end_cond, result[sent_index]["verbs"]
                                 )
                                 action = [
                                     sent_index,
-                                    srlSent,
-                                    actionResult[0],
-                                    actionResult[1],
+                                    srl_sent,
+                                    action_result[0],
+                                    action_result[1],
                                 ]
                             else:
                                 action = []
@@ -825,9 +854,8 @@ def orchestration_condition_sentence(
                         "need to check in front of the conditional marker, not yet implemented."
                     )
                     action = []
-                    pass
                 # Check for action in front of condition index
-                condition_action_results.append([srlData, action])
+                condition_action_results.append([srl_data, action])
         # If there is another cond_index
     return condition_action_results
 

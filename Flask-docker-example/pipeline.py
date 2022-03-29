@@ -322,16 +322,36 @@ class Pipeline:
                         action_range = range(action[2], action[3] + 1)
                         if set(action_range).intersection(avo_range):
                             avo_sent["action"] = True
+                            if len(action) > 4:
+                                if "action_found_in_front" in action[4]:
+                                    avo_sent["before_condition"] = True
+
                     if condition and action:
                         if avo_sent["condition"] and avo_sent["action"]:
                             # We have an empty conditional keyword
                             begin_index = avo_sent["begin_index"]
-                            avo_sent["condition_keyword"] = avo_sent["action_text"][
-                                condition[2]
-                                - begin_index : condition[3]
-                                - begin_index
-                                + 1
-                            ]
+                            if len(condition) > 6:
+                                # In the case that we already added the condition keyword.
+                                if "conditional_keyword" in condition[6]:
+                                    avo_sent["condition_keyword"] = condition[6][
+                                        "conditional_keyword"
+                                    ].split(" ")
+                                else:
+                                    avo_sent["condition_keyword"] = avo_sent[
+                                        "action_text"
+                                    ][
+                                        condition[2]
+                                        - begin_index : condition[3]
+                                        - begin_index
+                                        + 1
+                                    ]
+                            else:
+                                avo_sent["condition_keyword"] = avo_sent["action_text"][
+                                    condition[2]
+                                    - begin_index : condition[3]
+                                    - begin_index
+                                    + 1
+                                ]
         return agent_verb_object_results
 
     def create_activity_server(self, activity_name: str) -> int:
@@ -908,6 +928,7 @@ class Pipeline:
                             "guard": guard,
                         }
                         node_merge_index += 1
+                        previous_node = conditional_start_node
                         # nodes_to_be_merged.append(conditional_start_node)
                     continue
                 else:
@@ -1013,8 +1034,41 @@ class Pipeline:
                 # deal with action that follows a condition
                 # cond_action_result = self.create_action_following_condition(avo,activity_id,previous_node,guard)
                 # previous_node = cond_action_result[0]
-                print("we are missing an action tagged avo_sent.")
-                print("id {}, sent {}".format(avo_index, " ".join(avo["node_text"])))
+                if agent_verb_object_results[avo_index - 1]["condition"]:
+                    # consider the previous avo_sent, we might have missed this action,
+                    # which should not be the case.
+                    print("we are missing an action tagged avo_sent.")
+                    print(
+                        "id {}, sent {}".format(avo_index, " ".join(avo["node_text"]))
+                    )
+                elif (
+                    avo_index + 1 <= len(agent_verb_object_results) - 1
+                    and agent_verb_object_results[avo_index + 1]["condition"]
+                ):
+                    # consider the next one. We probably have a mix up. So we change them around and try to parse the conditional structure.
+                    avo_copy = agent_verb_object_results[:]
+                    # switch them around.
+                    avo_copy[avo_index], avo_copy[avo_index + 1] = (
+                        avo_copy[avo_index + 1],
+                        avo_copy[avo_index],
+                    )
+                    process_cond_result = self.process_conditional_structure(
+                        avo_copy[avo_index:],
+                        previous_node,
+                        activity_id,
+                        decision_nodes,
+                    )
+                    previous_node = process_cond_result[0]
+                    processed_results = process_cond_result[1]
+                    if processed_results >= 1:
+                        avo_index += processed_results - 1
+                else:
+                    print("we are missing an action tagged avo_sent.")
+                    print(
+                        "id {}, sent {}".format(avo_index, " ".join(avo["node_text"]))
+                    )
+                # check previous -> not a condition. Then we should consider the next one.
+                # if the next one is an action. process condition action, but with the two turned around.
             else:
                 # normal action.
                 action_result = self.create_action(avo, activity_id, previous_node)
