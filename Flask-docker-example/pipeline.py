@@ -5,12 +5,10 @@ import nltk
 import spacy
 from nltk import pos_tag
 from nltk.tokenize import word_tokenize, sent_tokenize
-from tqdm import tqdm
 import activityInterface as actInt
 import conditionExtraction as condExtr
 import semantic_role_labelling as sem_rol
 import coreference as corefer
-import text_support as text_sup
 import entailment as entail
 from indicators import empty_conditional_indicators
 
@@ -216,52 +214,6 @@ class Pipeline:
             sen_lens.append(length)
             last = length
         return sen_lens
-
-    def coreference(self):
-        """Create coreference module."""
-        coref = corefer.Coreference()
-        coref.connect(document=self.text)
-        coref.parse_data()
-        output = coref.find_all_personal_ant()
-        sen_len = self.get_list_sent_lengths(self.text)
-        for pp in output:
-            index = 0
-            low_pp = pp[0][1][0]
-            for i in sen_len:
-                if low_pp <= i - 1:
-                    print("found pp at sen {}".format(index))
-                    # next up check this particular sentence
-                    substr = sen_len[index - 1] if index > 0 else 0
-                    pp_begin = low_pp - substr
-                    pp_end = pp[0][1][1] - substr
-                    for triple in self.triples[index]:
-                        if triple[0][0] != "":
-                            print(triple[0][0])
-                            if triple[0][1][0] == pp_begin:
-                                if pp_begin != pp_end:
-                                    if triple[0][1][1] == pp_end:
-                                        # print('triple found!')
-                                        # #replace triple
-                                        # print('trip: {}'.format(triple[0][0]))
-                                        # print('replace: {}'.format(pp[1][0]))
-                                        triple[0][0] = pp[1][0]
-                                else:
-                                    # print('triple found')
-                                    # print(triple[0])
-                                    # #replace triple
-                                    # print('trip: {}'.format(triple[0][0]))
-                                    # print('replace: {}'.format(pp[1][0]))
-                                    triple[0][0] = pp[1][0]
-                    break
-                index += 1
-        self.coref_res = output
-        # print(output)
-        # transform output to use in comparable with output.
-        # Currently output returns items that in the whole text.
-        # While the triple actors are returned per sentence.
-        # so important to be able to combine this.
-        #
-        # walk through the coref and normal triple actors to combine.
 
     def add_sent_index_coref(self, coref_output: list, text: str) -> list:
         """Add the index of the sentence to the coref_output"""
