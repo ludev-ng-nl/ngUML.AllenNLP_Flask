@@ -48,10 +48,6 @@ class Pipeline:
             elif choice == 2:
                 print("We have the following")
 
-    def set_text(self, input_text) -> None:
-        """Set the text variable in the class"""
-        self.text = input_text
-
     def clear_srl_objects(self):
         """Clear the srel objects."""
         self.actors = []
@@ -78,131 +74,6 @@ class Pipeline:
         self.actors = avo[0]
         self.verbs = avo[1]
         self.objects = avo[2]
-
-    def get_action_nodes(self) -> None:
-        """Get all triples that contain an action and a actor or object"""
-        if not self.triples:
-            print("Triples is empty please first run Pipeline.semantic_role_labelling.")
-            return
-        self.action_nodes = []
-        for sentence in self.triples:
-            for triple in sentence:
-                if triple[0][1]:
-                    # we have an actor
-                    self.action_nodes.append(triple)
-
-    def get_doubles(self) -> None:
-        """Get all triples that have an agent or object next to a verb."""
-        if not self.triples:
-            print("Triples is empty please first run Pipeline.semantic_role_labelling.")
-            return
-        self.doubles = []
-        for sentence in self.triples:
-            for triple in sentence:
-                if triple[0][1] or triple[2][1]:
-                    # we have an actor or object
-                    self.doubles.append(triple)
-
-    def concat_triples(self):
-        """use the found action_nodes to concatenate them, to parse into the editor."""
-        conc_triples = []
-        for triple in self.action_nodes:
-            out = ""
-            for item in triple:
-                out += item[0] + " "
-            out = out.strip()
-            conc_triples.append(out)
-        return conc_triples
-
-    def concat_doubles(self):
-        """concatenate the names of the found action_nodes, to parse into the editor."""
-        conc_doubles = []
-        for double in self.doubles:
-            out = ""
-            for item in double:
-                out += item[0] + " "
-            out = out.strip()
-            conc_doubles.append(out)
-        return conc_doubles
-
-    def create_data_from_text(self, activity_name):
-        """Create an activity model from text with the triples."""
-        self.act_interface.clear_data()
-        act = self.act_interface.create_activity(activity_name, {})
-        act_id = self.act_interface.create_activity_server(act)
-        act["type"] = "retype-activity"
-        self.act_interface.changes.append(act)
-        conc_triples = self.concat_triples()
-        node_id = self.act_interface.create_add_node(
-            act_id, "Initial", {"name": "Initial"}
-        )
-        for triple in conc_triples:
-            node_id = self.act_interface.create_add_node(
-                act_id, "Action", {"name": triple}
-            )
-        node_id = self.act_interface.create_add_node(
-            act_id, "ActivityFinal", {"name": "Final"}
-        )
-        node_keys = [key for key in self.act_interface.nodes]
-        for index, item in enumerate(node_keys):
-            from_node = item
-            if index < len(node_keys) - 1:
-                to_node = node_keys[index + 1]
-                self.act_interface.create_connection(act_id, from_node, to_node, {})
-        dat = self.act_interface.post_data()
-        return dat
-
-    def create_data_from_doubles(self, activity_name):
-        """create an activity with nodes based on doubles."""
-        self.act_interface.clear_data()
-        act = self.act_interface.create_activity(activity_name, {})
-        act_id = self.act_interface.create_activity_server(act)
-        act["type"] = "retype-activity"
-        self.act_interface.changes.append(act)
-        conc_doubles = self.concat_doubles()
-        self.act_interface.create_add_node(act_id, "Initial", {"name": "Initial"})
-        for triple in conc_doubles:
-            self.act_interface.create_add_node(act_id, "Action", {"name": triple})
-        self.act_interface.create_add_node(act_id, "ActivityFinal", {"name": "Final"})
-        node_keys = [key for key in self.act_interface.nodes]
-        for index, item in enumerate(node_keys):
-            from_node = item
-            if index < len(node_keys) - 1:
-                to_node = node_keys[index + 1]
-                self.act_interface.create_connection(act_id, from_node, to_node, {})
-        dat = self.act_interface.post_data()
-        return dat
-
-    def get_activity_from_text(self, text, activity_name):
-        """Generate an activity from a text and post to backend.
-
-        Args:
-           - text (str): The text that should be used to generate an activity.
-           - activity_name (str): The name of the activity that is generated from the given text.
-
-        Returns:
-           - The result from the requests post to the server
-        """
-        self.set_text(text)
-        self.semantic_role_labelling()
-        self.get_action_nodes()
-        dat = self.create_data_from_text(activity_name)
-        # result = requests.post(self.act_interface.post_url,json=dat)
-        # return result
-        return self.act_interface.post_activity_data_to_server(
-            self.act_interface.post_url, dat
-        )
-
-    def get_activity_from_text_doubles(self, text, activity_name):
-        """Generate activity model from text and post to backend."""
-        self.set_text(text)
-        self.semantic_role_labelling()
-        # add coref here? - coref changes the actors. So after that you can get the doubles.
-        self.get_doubles()
-        dat = self.create_data_from_doubles(activity_name)
-        return self.act_interface.post_activity_data_to_server(
-            self.act_interface.post_url, dat
-        )
 
     def get_list_of_text(self):
         """Create list of words for each sentence."""
@@ -364,49 +235,6 @@ class Pipeline:
         self.act_interface.create_connection(activity_id, previous_node, action, {})
         previous_node = action
         return [previous_node]
-
-    def select_conditional_results(self, avo_sents: list) -> list:
-        """Select the conditional results from the avo_sents."""
-        index = 0
-        results = []
-        coref_ids = set()
-        if "coref_ids" in avo_sents[0]:
-            coref_ids = set(avo_sents[0]["coref_ids"])
-        while True:
-            if index >= len(avo_sents):
-                break
-            avo_sent = avo_sents[index]
-            # if avo_sent["condition"]:
-            #     # Check for contradiction in text entailment
-            #     if first_conditional_sent == None:
-            #         first_conditional_sent = " ".join(avo_sent["node_text"])
-            #     else:
-            #         # Compare sentences and look for contradiction
-            #         hypothesis_sent = " ".join(avo_sent["node_text"])
-            #         entail_res = entailmentInterface.entailment(
-            #             first_conditional_sent, hypothesis_sent
-            #         )
-            #         print("entail_res:")
-            #         print(entail_res)
-            #         if entail_res["label"] != "contradiction":
-            #             break
-            if avo_sent["condition"] or avo_sent["action"]:
-                # found a condition action structure
-                results.append(avo_sent)
-                # as the coreference ids from the first avo_sent might not be
-                # the correct ones we extend them with all the condition
-                # actions we have found earlier
-                if "coref_ids" in avo_sent:
-                    coref_ids = set.union(coref_ids, set(avo_sent["coref_ids"]))
-            elif "coref_ids" in avo_sent:
-                # process the coreference id.
-                if not set(avo_sent["coref_ids"]).isdisjoint(coref_ids):
-                    # There is a match between the two coref_id lists.
-                    results.append(avo_sent)
-            else:
-                break
-            index += 1
-        return results
 
     def select_condition_results_entail(self, avo_sents_subset: list) -> list:
         """Select conditional results based on entailment.
