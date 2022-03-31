@@ -874,7 +874,9 @@ class Pipeline:
             activity_id, "ActivityFinal", {"name": "Final"}
         )
         self.act_interface.create_connection(activity_id, previous_node, final, {})
-        # merge nodes
+        # add else paths
+        self.act_interface.identify_termination_actions_and_add_termination()
+        # remove single merge nodes.
         data = self.act_interface.post_data()
         return self.act_interface.post_activity_data_to_server(
             self.act_interface.post_url, data

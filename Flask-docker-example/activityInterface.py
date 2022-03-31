@@ -1,6 +1,12 @@
 import uuid
-import requests
 import json
+import requests
+import nltk
+import spacy
+from nltk.tokenize import RegexpTokenizer
+from indicators import termination_indicators
+
+nlp_spacy = spacy.load("en_core_web_sm")
 
 
 class ActivityInterface:
@@ -13,6 +19,7 @@ class ActivityInterface:
         self.post_url = "http://django:8000/model/data?uml-type=activity"
 
     def service_online(self, url):
+        """Check if a url is returning some value."""
         try:
             get = requests.get(url)
             if get.status_code == 200:
@@ -20,7 +27,8 @@ class ActivityInterface:
                 return True
             else:
                 print(
-                    f"{url}: is Not reachable, status_code: {get.status_code}. Is the ngUML Django service running?"
+                    f"{url}: is Not reachable, status_code: "
+                    + "{get.status_code}. Is the ngUML Django service running?"
                 )
                 return False
         except requests.exceptions.RequestException as e:
@@ -73,18 +81,22 @@ class ActivityInterface:
         """Create a dictionary item containing a node.
 
         Description:
-           The node can be different types.
+            The node can be different types.
 
         Args:
-           - name (str): name of the activity
-           - node_type (str): type can be the following: ['new-initial', 'new-action','new-activityFinal','new-flowFinal',
-              'new-fork','new-merge','new-join','new-decision']
-           - activity_id (int): activity id to which the node is part of. such as 1 or 2.
-              This is the key from the backend.
-           - args (list): containing the different options that could be in the activity node
+            - name (str): name of the activity
+            - node_type (str): type can be the following:
+                ['new-initial', 'new-action','new-activityFinal',
+                'new-flowFinal','new-fork','new-merge','new-join',
+                'new-decision']
+            - activity_id (int): activity id to which the node is part of.
+                such as 1 or 2. This is the key from the backend.
+            - args (list): containing the different options that could be
+                in the activity node
 
         Returns:
-           - node (dict): node containing the data, such as a action, initial or decision node.
+            - node (dict): node containing the data, such as a action,
+                initial or decision node.
         """
         allowed_types = [
             "new-initial",
@@ -98,9 +110,10 @@ class ActivityInterface:
         ]
         if node_type not in allowed_types:
             print(
-                "The given type: {}. Is not in the allowed-types, please give an allowed type such as:\n{}".format(
-                    node_type, ", ".join(allowed_types)
-                )
+                (
+                    "The given type: {}. Is not in the allowed-types, "
+                    + "please give an allowed type such as:\n{}"
+                ).format(node_type, ", ".join(allowed_types))
             )
             return
         node = {}
@@ -290,6 +303,25 @@ class ActivityInterface:
         self.changes.append(conn_change)
         return conn
 
+    def delete_connection(self, connection_id: str) -> None:
+        """Delete a connection from connections and connection_changes."""
+        connection_changes = [
+            change
+            for change in self.changes
+            if change["type"] == "new-connection" and change["key"] == connection_id
+        ]
+        if not connection_changes:
+            print(
+                "Could not delete connection {}, it does not exist.".format(
+                    connection_id
+                )
+            )
+            return
+        connection_change = connection_changes[0]
+        self.changes.remove(connection_change)
+        del self.connections[connection_id]
+        return
+
     def create_post_data_dict(self):
         """Creates a dictionary with data to be posted. (might need better name)"""
         data = {}
@@ -303,16 +335,21 @@ class ActivityInterface:
 
         Description:
            Creates an activity on the server and returns the id.
-           Preliminary is that the ngUML backend needs to be up and running.
+           Preliminary is that the ngUML backend needs to be up
+           and running.
 
            TODO
-           Currently the activity name is taken as  a way to find the new activity. A better approach will be to use the id given based on creation. But need to wait to make sure the backend is updated by another student.
+           Currently the activity name is taken as  a way to find
+           the new activity. A better approach will be to use the
+           id given based on creation. But need to wait to make
+           sure the backend is updated by another student.
 
         Args:
-           - activity (dict): dictionary of an activity, can be created using create_activity
+            - activity (dict): dictionary of an activity, can be
+                created using create_activity
 
         Returns:
-           - activity_id: returns the id of the created activity.
+            - activity_id: returns the id of the created activity.
         """
         data = self.create_post_data_dict()
         data["changes"].append(activity)
@@ -331,6 +368,7 @@ class ActivityInterface:
         return act_id
 
     def create_activity_retype(self, activity_id, name):
+        """Create a retype of an activity."""
         act = self.create_activity(name, {})
         act["type"] = "retype-activity"
         act["to"]["retype"] = "name"
@@ -339,11 +377,14 @@ class ActivityInterface:
         return act
 
     def clear_data(self):
+        """Clear the class data variables."""
         self.nodes = {}
         self.connections = {}
         self.changes = []
 
     def post_data(self):
+        """Create a dict to post the data.
+        TODO new name."""
         data = {}
         data["nodes"] = self.nodes
         data["connections"] = self.connections
@@ -547,7 +588,70 @@ class ActivityInterface:
                     last_actions.append(previous_node_id)
         return last_actions
 
-    def check_last_actions_of_conditions_for_termination(self) -> None:
+    def find_termination_verb_from_text(
+        self, text: str, words_only_tokenizer: RegexpTokenizer, termination_lemmas: list
+    ) -> bool:
+        """Find the termination verbs in a certain text.
+
+        Args:
+            - words_only_tokenizer (RegexpTokenizer): nltk tokenizer that only keeps words.
+            - termination_lemmas (list): list of termination words in their lemma form.
+
+        Returns:
+            - (bool): True if a termination verb is found, False if no termination verb is found.
+        """
+        tokenised_text = words_only_tokenizer.tokenize(text)
+        pos_tagged = nltk.pos_tag(tokenised_text)
+        verbs = list(filter(lambda x: x[1].startswith("VB"), pos_tagged))
+        if verbs:
+            verb_words = [verb_result[0] for verb_result in verbs]
+            verb_doc = nlp_spacy(" ".join(verb_words))
+            lemmatized_verbs = [token.lemma_ for token in verb_doc]
+            print(lemmatized_verbs)
+            found_termination = [
+                True
+                for lemma_verb in lemmatized_verbs
+                if lemma_verb in termination_lemmas
+            ]
+            if found_termination:
+                return True
+        return False
+
+    def get_termination_actions(
+        self,
+        action_ids: list,
+        words_only_tokenizer: RegexpTokenizer,
+        termination_lemmas: list,
+    ) -> list:
+        """Get termination actions for a set of actions ids.
+
+        Args:
+            - action_ids (list): all action_ids we are considering.
+            - words_only_tokenizer (RegexpTokenizer): tokenizer that
+                only keeps letters.
+            - termination_lemmas (list): list of lemmas of termination
+                words.
+
+        Returns:
+            - action_with_termination_ids (list): list of action_ids that contain a termination word.
+        """
+
+        # for action_ids in action_ids_per_condition:
+        action_with_termination_ids = []
+        for node_id in action_ids:
+            node = self.nodes[node_id]
+            action = node["name"]
+            print(action)
+            termination_action_id = self.find_termination_verb_from_text(
+                action, words_only_tokenizer, termination_lemmas
+            )
+            if termination_action_id:
+                print("termination_action_id")
+                print(termination_action_id)
+                action_with_termination_ids.append(node_id)
+        return action_with_termination_ids
+
+    def select_last_actions_of_conditions_with_termination(self) -> None:
         """Check all last actions in a conditional structure for terminations.
 
         Description:
@@ -563,19 +667,49 @@ class ActivityInterface:
             - None
         """
         conditional_structures = self.get_all_conditional_structures()
-        last_actions_per_condition = []
+        termination_action_per_condition = {}
+        # use Regexp tokenizer to remove characters other then letters.
+        words_only_tokenizer = RegexpTokenizer(r"\w+")
+        term_indicator_doc = nlp_spacy(" ".join(termination_indicators))
+        termination_lemmas = [token.lemma_ for token in term_indicator_doc]
         for conditional_id, merge_ids in conditional_structures.items():
-            last_actions_per_condition.append(
-                self.get_last_action_in_condition_path(merge_ids)
+            last_actions = self.get_last_action_in_condition_path(merge_ids)
+            termination_action_ids = self.get_termination_actions(
+                last_actions, words_only_tokenizer, termination_lemmas
             )
+            if termination_action_ids:
+                termination_action_per_condition[
+                    conditional_id
+                ] = termination_action_ids
 
-        for last_actions in last_actions_per_condition:
-            for node_id in last_actions:
-                node = self.nodes[node_id]
-                action = node["name"]
-                print(action)
-                # check action for a termination word in the verbs.
-                # if that is the case we add termination
-                #   change the connection to the termination.
-                # do somethign with pos tagging to extract verbs
-                # then stemming and compare to the stemmed list of termination words.
+        return termination_action_per_condition
+
+    def identify_termination_actions_and_add_termination(self) -> None:
+        """Identify all termination actions and add a termination node.
+
+        Description:
+            We select all action nodes that have verb that terminates
+            the process. Then we add a termination point to them. and
+            change the connection to the merge node to a connection to
+            the activity final node.
+
+        Args:
+            - activity_id (int): id of the activity we are currently looking at.
+
+        Returns:
+            - None
+        """
+        condition_action_termination_nodes = (
+            self.select_last_actions_of_conditions_with_termination()
+        )
+        for condition_id, action_ids in condition_action_termination_nodes.items():
+            for action_id in action_ids:
+                # There might be multiple action_ids.
+                connection_id = self.get_connections_using_from_node_id(action_id)
+                self.delete_connection(connection_id[0])
+                action_node = self.nodes[action_id]
+                activity_id = action_node["data"]["activity_id"]
+                activity_final = self.create_add_node(
+                    activity_id, "ActivityFinal", {"name": "Final"}
+                )
+                self.create_connection(activity_id, action_id, activity_final, {})
