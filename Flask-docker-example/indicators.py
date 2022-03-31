@@ -60,6 +60,11 @@ ferreira_sequence_indicators = [
     # todo - look at teh others
 ]
 
+termination_indicators = [
+    "cancel",
+    "finish",
+]
+
 self_sequence_indicators = []
 
 conditional_indicators = (
