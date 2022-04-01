@@ -258,6 +258,27 @@ class ActivityInterface:
         self.changes.append(change)
         return change["nodeKey"]
 
+    def delete_node(self, node_id: str) -> None:
+        """Delete node and connections that are part of it."""
+        # Delete connections to the node.
+        incoming_connections = self.get_connections_to_node_id(node_id)
+        outgoing_connections = self.get_connections_using_from_node_id(node_id)
+        for incoming_conn_id in incoming_connections:
+            self.delete_connection(incoming_conn_id)
+        for outgoing_conn_id in outgoing_connections:
+            self.delete_connection(outgoing_conn_id)
+        # Delete node
+        node_changes = [
+            change
+            for change in self.changes
+            if "nodeKey" in change and change["nodeKey"] == node_id
+        ]
+        if len(node_changes) > 1:
+            print("More node changes than one. We only delete the first.")
+        node_change = node_changes[0]
+        self.changes.remove(node_change)
+        del self.nodes[node_id]
+
     def create_empty_connection(self):
         """Create empty connection."""
         connection = {}
@@ -474,14 +495,6 @@ class ActivityInterface:
             connections_per_node[node_key] = node_connections
         return connections_per_node
 
-    def delete_node(self, node_id: str) -> None:
-        """Delete a node from the nodes and changes.
-
-        TODO not finished"""
-        node = self.nodes[node_id]
-        # delete the node -> first testing.
-        node_change = self.changes
-
     def get_first_node_of_type(self, start_node_id: str, search_node_type: str) -> str:
         """Find the first node of a certain type while going through the nodes.
 
@@ -493,13 +506,23 @@ class ActivityInterface:
             - found_node_id (str): the id of the found node, if it is not found return None
         """
         # number to limit the amount of searched nodes.
-        max_node_depth = 5
-        index = 1
+        max_node_depth = 4
+        index = 0
         current_node_id = start_node_id
         found_node_id = None
         while True:
             if index > max_node_depth:
                 print("Node search exceeded max node depth.")
+                break
+            current_node = self.nodes[current_node_id]
+            if current_node["type"] == search_node_type:
+                found_node_id = current_node_id
+                break
+            if current_node_id == start_node_id and index > 0:
+                print(
+                    "We have found a loop, so we break."
+                    + " We might consider smart connection search."
+                )
                 break
             connection_ids = self.get_connections_using_from_node_id(current_node_id)
             if not connection_ids:
@@ -508,16 +531,6 @@ class ActivityInterface:
             connection = self.connections[connection_ids[0]]
             current_node_id = connection["to"]
             if not current_node_id in self.nodes:
-                break
-            current_node = self.nodes[current_node_id]
-            if current_node["type"] == search_node_type:
-                found_node_id = current_node_id
-                break
-            if current_node_id == start_node_id:
-                print(
-                    "We have found a loop, so we break."
-                    + " We might consider smart connection search."
-                )
                 break
             index += 1
         return found_node_id
@@ -535,8 +548,8 @@ class ActivityInterface:
            - none
 
         Returns:
-           - merge_node_per_condition_node (dict): a list with all condition and
-              merge node as a combination.
+           - merge_node_per_condition_node (dict): a list with all merge nodes that
+                can be accessed using the condition id.
         """
         conditional_node_keys = self.get_all_node_keys_by_type("Decision")
         conditional_node_connections = self.get_all_connections_for_nodes(
@@ -713,3 +726,40 @@ class ActivityInterface:
                     activity_id, "ActivityFinal", {"name": "Final"}
                 )
                 self.create_connection(activity_id, action_id, activity_final, {})
+        return
+
+    def add_alternative_path_to_single_conditions(self) -> None:
+        """Add an alternative path when we have only a single condition."""
+        conditional_structures = self.get_all_conditional_structures()
+        for conditional_id, merge_node_ids in conditional_structures.items():
+            connections = self.get_connections_using_from_node_id(conditional_id)
+            if connections and len(connections) < 2:
+                # found a condition with only one outgoing condition.
+                # take the first merge_node, as we are not sure.
+                merge_node_id = merge_node_ids[0]
+                activity_id = self.nodes[conditional_id]["data"]["activity_id"]
+                self.create_connection(
+                    activity_id, conditional_id, merge_node_id, {"guard": "else"}
+                )
+        return
+
+    def remove_single_merge_nodes(self) -> None:
+        """Remove a merge node with only on incoming edge."""
+        merge_node_ids = self.get_all_node_keys_by_type("Merge")
+        for merge_node_id in merge_node_ids:
+            to_connections = self.get_connections_to_node_id(merge_node_id)
+            if len(to_connections) == 1:
+                to_connection = self.connections[to_connections[0]]
+                previous_id = to_connection["from"]
+                outgoing_connections = self.get_connections_using_from_node_id(
+                    merge_node_id
+                )
+                next_node_id = self.connections[outgoing_connections[0]]["to"]
+                activity_id = self.nodes[merge_node_id]["data"]["activity_id"]
+                self.create_connection(
+                    activity_id,
+                    previous_id,
+                    next_node_id,
+                    {"guard": to_connection["guard"]},
+                )
+                self.delete_node(merge_node_id)

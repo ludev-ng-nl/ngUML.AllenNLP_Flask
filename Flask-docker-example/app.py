@@ -67,5 +67,16 @@ def run_model_and_post():
     return "Finished correctly"
 
 
+@app.route("/run_model_and_post_text", methods=["POST"])
+def run_model_and_post_with_text():
+    """Run the whole model and post to backend, with a given text."""
+    data = request.get_json()
+    model_name = data["model_name"]
+    text = data["text"]
+    avo_sents = run_latest_demo(model_name, text, True)
+    np.save(model_name + ".npy", avo_sents)
+    return "Finished correctly"
+
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
