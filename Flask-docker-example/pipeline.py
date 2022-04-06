@@ -907,10 +907,8 @@ class Pipeline:
                         previous_node = action[0]
                         previous_type = "action"
             else:
-                # Skip first sentence, as we already used it.
                 pass
         # everything done? -> create a merge node and a connection from each merge nodes.
-        # TODO What happens in the case of a coref line.
         merge_node_key = self.act_interface.make_connection_from_nodes_to_merge_node(
             nodes_to_be_merged_dict, activity_id
         )
