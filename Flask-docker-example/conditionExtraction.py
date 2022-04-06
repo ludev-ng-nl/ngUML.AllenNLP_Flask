@@ -468,22 +468,6 @@ class ConditionExtractionInterface:
                 )
 
 
-# Demonstration
-#
-# #Demonstration with single text
-# texts = create_single_text_input("This is a string of texts. Which presents an input.
-# If the part is in-house the order is built.")
-# condExInt = ConditionExtractionInterface()
-# texts = condExInt.get_text_from_folder('test-data')
-# results = condExInt.srl_for_all_texts(texts)
-# condActions = condExInt.condition_extraction_for_texts(results)
-# condExInt.print_condition_actions(condActions)
-# resConditons = condExInt.select_sentences_with_condition_keywords_for_texts(texts)
-
-# Used the part above to setup for texting
-# also check Condition analysis.xlsx in the misc folder of the google drive.
-
-
 def print_sent_and_tags_analysis(condition_results, results):
     """Print sentences with conditions and all their tags from SRL for easy analysis and copying to excel.
 
@@ -501,16 +485,6 @@ def print_sent_and_tags_analysis(condition_results, results):
                 print(" ".join(result["tags"]))
 
 
-# finish this one -> see the notes on paper.
-# for index, text_item in enumerate(resConditons):
-#    for ix in text_item['sen_ids']:
-#       sent = [x.lower() for x in results[index][ix]['words']]
-#       sen_data = text_item['sen_id_data'][ix]
-#       for cond in sen_data:
-#          cond_ix = sent.index(cond)
-#          print("{}: {}".format(ix, " ".join(sent[cond_ix:])))
-
-
 def check_for_adverbial(cond_index_list, sent_index, result):
     """Check if there is an adverbial in the sentence on the condition index."""
     cond_index = cond_index_list[1]
@@ -521,14 +495,6 @@ def check_for_adverbial(cond_index_list, sent_index, result):
     return cond_adv_sents_index
 
 
-# get adverb
-# check for adverb in condition index
-# example for sentence 10 and index 0 is the conditional index.
-# cond_index = 0
-# sent_index = 10
-# result = results[0]
-# cond_tags = [x['tags'][cond_index] for x in results[0][sent_index]['verbs']]
-# cond_adv_sents_index = [i for i,x in enumerate(cond_tags) if x == 'B-ARGM-ADV']
 def get_adverbial(cond_index_list, sent_index, result):
     """Retrieve an adverbial SRL if it is in the same index as the condition.
 
@@ -569,19 +535,6 @@ def get_adverbial(cond_index_list, sent_index, result):
         return []
 
 
-# tags = [[t for t in results[0][sent_index]['verbs'][i]['tags'] if t == 'I-ARGM-ADV'] for i in cond_adv_sents_index]
-# select the longest list
-# best_tags_list = max(tags)
-# adv_sent_index = cond_adv_sents_index[tags.index(best_tags_list)]
-# condition_sent = " ".join(results[0][sent_index]['words'][cond_index:cond_index + len(best_tags_list)+1])
-# description = results[0][sent_index]['verbs'][adv_sent_index]['description']
-# condition = [sent_index, adv_sent_index, cond_index, cond_index + len(best_tags_list)]
-
-
-# Checking for the srl tag following the conditional one
-# sent_index = 10
-# cond_index = 0
-# result = results[0]
 def get_condition_SRL_after_indicator(cond_index_list, sent_index, result):
     """Retrieve an conditional SRL that follows after the condition index.
 
@@ -926,18 +879,3 @@ def print_condition_action_data(conditionActionData, results):
                 actionData = ca[1]
                 action = " ".join(sent[actionData[2] : actionData[3] + 1])
                 print("s{},a: {}".format(key, action))
-
-
-# printing the data from the outputCondition
-
-
-# conditional indicator
-# done -> closest srl is Condition
-# done      -> if is part of adv -> adv is Condition
-# -> SRL after the condition is the action
-
-# -> if another conditional indicator
-#    and not part of adverbial
-#    -> possible another path for the condition.
-#
-# Note if we have another adv in the sentence -> possible the adv of the action.
