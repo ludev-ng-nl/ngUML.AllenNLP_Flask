@@ -685,6 +685,129 @@ class Pipeline:
         nodes_list[pos] = new_node_id
         return nodes_list
 
+    def process_single_conditional_result(
+        self,
+        avo_sent: dict,
+        conditional_start_node: str,
+        activity_id: int,
+        previous_node: str,
+        nodes_to_be_merged_dict: dict,
+        node_merge_index: int,
+        decision_nodes: list,
+    ):
+        """Process a conditional result when processing conditional results
+
+        Args:
+            - avo_sent (dict): avo_sent we are processing.
+            - conditional_start_node (str): id of the node where the condition starts.
+            - activity_id (int): where the nodes are part of.
+            - previous_node (str): node where we connect the result to.
+            - nodes_to_be_merged_dict (dict): dict where all nodes that should be merged are in.
+            - node_merge_index (int): index of the node merge.
+            - decision_nodes: list with all current decision nodes.
+
+        Returns:
+            -   [previous_node (str), conditional_start_node (str), guard (str),
+                    node_merge_index (int), previous_type (str)]
+        """
+        # if we have condition -> generate guard and continue with action.
+        # set previous to begin condition.
+        guard = " ".join(avo_sent["complete_sent"])
+        previous_type = "decision"
+        # previous_node = conditional_start_node
+        if not conditional_start_node:
+            # Case that there was a coref node, so we dont have a
+            # conditional start node yet.
+            condition_result = self.create_condition(
+                avo_sent, activity_id, previous_node
+            )
+            previous_node = condition_result[0]
+            guard = condition_result[1]
+            conditional_start_node = previous_node
+
+        if "condition_keyword" in avo_sent:
+            conditional_keyword = " ".join(avo_sent["condition_keyword"])
+            if conditional_keyword in empty_conditional_indicators:
+                # process condition as an empty condition with an action.
+                guard = "else"
+                action = self.create_action_following_condition(
+                    avo_sent, activity_id, conditional_start_node, guard
+                )
+                previous_node = action[0]
+                previous_type = "action"
+                # add to last node
+                nodes_to_be_merged_dict[node_merge_index] = {
+                    "node_id": action[0],
+                    "guard": "",
+                }
+                node_merge_index += 1
+        else:
+            # this process seems to be too small.
+            condition_res = self.process_single_condition(
+                avo_sent, decision_nodes, conditional_start_node
+            )
+            # it does not get a correct line.
+            # add to merge node with guard
+            nodes_to_be_merged_dict[node_merge_index] = {
+                "node_id": conditional_start_node,
+                "guard": guard,
+            }
+            node_merge_index += 1
+            previous_node = conditional_start_node
+
+        return [
+            previous_node,
+            conditional_start_node,
+            guard,
+            node_merge_index,
+            previous_type,
+        ]
+
+    def process_action_following_decision_result(
+        self,
+        avo_sent: dict,
+        activity_id: int,
+        previous_node: str,
+        guard: str,
+        nodes_to_be_merged_dict: dict,
+        node_merge_index: int,
+    ) -> int:
+        """Process an action that follows a decision node.
+
+        Args:
+            - avo_sent (dict): avo_sent we are processing.
+            - activity_id (int): where the nodes are part of.
+            - previous_node (str): node where we connect the result to.
+            - guard (str): possible guard for next node
+            - nodes_to_be_merged_dict (dict): dict where all nodes that should be merged are in.
+            - node_merge_index (int): index of the node merge.
+
+        Returns:
+            - previous_node (str), previous_type (str), node_merge_index (int)
+        """
+        action = self.create_action_following_condition(
+            avo_sent, activity_id, previous_node, guard
+        )
+        if (
+            node_merge_index - 1 in nodes_to_be_merged_dict
+            and previous_node
+            == nodes_to_be_merged_dict[node_merge_index - 1]["node_id"]
+        ):
+            # we have a decision node in the nodes to be merged, so replace it.
+            nodes_to_be_merged_dict[node_merge_index - 1] = {
+                "node_id": action[0],
+                "guard": "",
+            }
+        else:
+            nodes_to_be_merged_dict[node_merge_index] = {
+                "node_id": action[0],
+                "guard": "",
+            }
+            node_merge_index += 1
+        previous_node = action[0]
+        previous_type = "action"
+        return [previous_node, previous_type, node_merge_index]
+
     def process_conditional_structure(
         self,
         avo_sents_sub_set: list,
@@ -698,7 +821,6 @@ class Pipeline:
             return previous_node
         # keep track of the merge nodes (action nodes)
         # keep track of previous node and node type
-        nodes_to_be_merged = []
         nodes_to_be_merged_dict = {}
         node_merge_index = 0
         previous_type = "decision"
@@ -742,80 +864,37 @@ class Pipeline:
         for index, avo_sent in enumerate(conditional_results):
             if index != 0:
                 if avo_sent["condition"]:
-                    # if we have condition -> generate guard and continue with action.
-                    # set previous to begin condition.
-                    guard = " ".join(avo_sent["complete_sent"])
-                    previous_type = "decision"
-                    # previous_node = conditional_start_node
-                    if not conditional_start_node:
-                        # Case that there was a coref node, so we dont have a
-                        # conditional start node yet.
-                        condition_result = self.create_condition(
-                            avo_sent, activity_id, previous_node
-                        )
-                        previous_node = condition_result[0]
-                        guard = condition_result[1]
-                        conditional_start_node = previous_node
-
-                    if "condition_keyword" in avo_sent:
-                        conditional_keyword = " ".join(avo_sent["condition_keyword"])
-                        if conditional_keyword in empty_conditional_indicators:
-                            # process condition as an empty condition with an action.
-                            guard = "else"
-                            action = self.create_action_following_condition(
-                                avo_sent, activity_id, conditional_start_node, guard
-                            )
-                            previous_node = action[0]
-                            previous_type = "action"
-                            # add to last node
-                            nodes_to_be_merged_dict[node_merge_index] = {
-                                "node_id": action[0],
-                                "guard": "",
-                            }
-                            node_merge_index += 1
-                            nodes_to_be_merged.append(action[0])
-                    else:
-                        # this process seems to be too small.
-                        condition_res = self.process_single_condition(
-                            avo_sent, decision_nodes, conditional_start_node
-                        )
-                        # we assume that the condition is followed by an action, in the
-                        # case of 'the order is approved', that is not the case. Therefore
-                        # it does not get a correct line.
-                        # add to merge node with guard
-                        nodes_to_be_merged_dict[node_merge_index] = {
-                            "node_id": conditional_start_node,
-                            "guard": guard,
-                        }
-                        node_merge_index += 1
-                        previous_node = conditional_start_node
-                        # nodes_to_be_merged.append(conditional_start_node)
-                    continue
+                    (
+                        previous_node,
+                        conditional_start_node,
+                        guard,
+                        node_merge_index,
+                        previous_type,
+                    ) = self.process_single_conditional_result(
+                        avo_sent,
+                        conditional_start_node,
+                        activity_id,
+                        previous_node,
+                        nodes_to_be_merged_dict,
+                        node_merge_index,
+                        decision_nodes,
+                    )
                 else:
                     # avo_sent['action'] or other.
                     # create action that follows last condition -> add it to the list of merge nodes
                     if previous_type == "decision":
-                        action = self.create_action_following_condition(
-                            avo_sent, activity_id, previous_node, guard
+                        (
+                            previous_node,
+                            previous_type,
+                            node_merge_index,
+                        ) = self.process_action_following_decision_result(
+                            avo_sent,
+                            activity_id,
+                            previous_node,
+                            guard,
+                            nodes_to_be_merged_dict,
+                            node_merge_index,
                         )
-                        if (
-                            node_merge_index - 1 in nodes_to_be_merged_dict
-                            and previous_node
-                            == nodes_to_be_merged_dict[node_merge_index - 1]["node_id"]
-                        ):
-                            # we have a decision node in the nodes to be merged, so replace it.
-                            nodes_to_be_merged_dict[node_merge_index - 1] = {
-                                "node_id": action[0],
-                                "guard": "",
-                            }
-                        else:
-                            nodes_to_be_merged_dict[node_merge_index] = {
-                                "node_id": action[0],
-                                "guard": "",
-                            }
-                            node_merge_index += 1
-                        previous_node = action[0]
-                        previous_type = "action"
                     else:
                         action = self.create_action(
                             avo_sent, activity_id, previous_node
@@ -827,8 +906,6 @@ class Pipeline:
                         }
                         previous_node = action[0]
                         previous_type = "action"
-                    # TODO check for termination in the node
-                    # remove from list of merge nodes
             else:
                 # Skip first sentence, as we already used it.
                 pass
