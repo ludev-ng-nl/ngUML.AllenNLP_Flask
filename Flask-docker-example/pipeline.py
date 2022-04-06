@@ -582,6 +582,15 @@ class Pipeline:
             defined conditional nodes and adding merge nodes.
 
         Args:
+            - activity_id (int): activity id where the structure is part of.
+            - previous_node (str): previous node, where we start from.
+            - avo_sent (dict): sent result we are considering.
+            - found_contra_coref_keys (list): list of all coreference keys that
+                contain a contradiction.
+            - decision_nodes (dict): dict of already created decision nodes.
+
+        Returns:
+            - [previous_node (str), conditional_start_node (str)]
         """
         merge_node = self.act_interface.create_add_node(
             activity_id, "Merge", {"name": "MergeNode"}
@@ -602,6 +611,71 @@ class Pipeline:
         previous_node = merge_node
         conditional_start_node = None
         return [previous_node, conditional_start_node]
+
+    def process_first_condition(
+        self,
+        found_contra_coref_keys: list,
+        activity_id: int,
+        previous_node: str,
+        conditional_results: list,
+        decision_nodes: dict,
+        nodes_to_be_merged_dict: dict,
+        node_merge_index: int,
+    ) -> list:
+        """Process the first condition in a conditional structure
+
+        Args:
+            - found_contra_coref_keys (list): keys that have a contra_coref entailment.
+            - activity_id (int): activity id of which the condition is part.
+            - previous_node (str): id of the previous_node where we link it to.
+            - conditional_results (list): all results that contain a conditional key.
+            - decision_nodes (dict): dict with all decision nodes we have created.
+            - nodes_to_be_merged_dict (dict): nodes that will be merged in the end.
+            - node_merge_index (int): index of where we currently are with the merge nodes.
+
+        Returns:
+            - [previous_node (str), conditional_start_node (str)]
+        """
+        if found_contra_coref_keys:
+            # create coreference - condition node - for the first node
+            previous_node, conditional_start_node = self.create_coreference_structure(
+                activity_id,
+                previous_node,
+                conditional_results[0],
+                found_contra_coref_keys,
+                decision_nodes,
+            )
+            guard = ""
+            return [
+                previous_node,
+                conditional_start_node,
+                guard,
+                None,
+                node_merge_index,
+            ]
+        else:
+            # process normal condition - for the first node
+            condition_result = self.create_condition(
+                conditional_results[0], activity_id, previous_node
+            )
+            previous_node = condition_result[0]
+            guard = condition_result[1]
+            conditional_start_node = previous_node
+            condition_result = self.process_single_condition(
+                conditional_results[0], decision_nodes, conditional_start_node
+            )
+            nodes_to_be_merged_dict[node_merge_index] = {
+                "node_id": conditional_start_node,
+                "guard": guard,
+            }
+            node_merge_index += 1
+            return [
+                previous_node,
+                conditional_start_node,
+                guard,
+                condition_result,
+                node_merge_index,
+            ]
 
     def replace_node_from_list(
         self, nodes_list: list, previous_node_id: str, new_node_id: str
@@ -635,32 +709,21 @@ class Pipeline:
             conditional_results[0]
         )
 
-        if found_contra_coref_keys:
-            # create coreference - condition node - for the first node
-            previous_node, conditional_start_node = self.create_coreference_structure(
-                activity_id,
-                previous_node,
-                conditional_results[0],
-                found_contra_coref_keys,
-                decision_nodes,
-            )
-            guard = ""
-        else:
-            # process normal condition - for the first node
-            condition_result = self.create_condition(
-                conditional_results[0], activity_id, previous_node
-            )
-            previous_node = condition_result[0]
-            guard = condition_result[1]
-            conditional_start_node = previous_node
-            condition_result = self.process_single_condition(
-                conditional_results[0], decision_nodes, conditional_start_node
-            )
-            nodes_to_be_merged_dict[node_merge_index] = {
-                "node_id": conditional_start_node,
-                "guard": guard,
-            }
-            node_merge_index += 1
+        (
+            previous_node,
+            conditional_start_node,
+            guard,
+            condition_result,
+            node_merge_index,
+        ) = self.process_first_condition(
+            found_contra_coref_keys,
+            activity_id,
+            previous_node,
+            conditional_results,
+            decision_nodes,
+            nodes_to_be_merged_dict,
+            node_merge_index,
+        )
 
         if len(conditional_results) == 1:
             # handle if there is only one.
