@@ -841,41 +841,27 @@ def extract_condition_action_data(texts: list, results: list) -> list:
     return condition_action_result
 
 
-# outputCondition = []
-# for index, item in enumerate(resConditons):
-#    sen_ids = item['sen_ids']
-#    sen_data = item['sen_id_data']
-#    outputData = {}
-#    for id in sen_ids:
-#       condWord = sen_data[id][0]
-#       sent = results[index][id]
-#       sentWords = [x.lower() for x in sent['words']]
-#       condIndex = sentWords.index(condWord)
-#       condResult = orchestration_condition_sentence(id,sen_data[id],results[index])
-#       outputData[id] = condResult
-#    outputCondition.append(outputData)
-
-
-def print_condition_action_data(conditionActionData, results):
+def print_condition_action_data(condition_action_data, results):
     """Print the data created by the orchestration_condition_sentence function.
 
     Args:
-       - conditionActionData (list(dict(list))): containing the index for the sentence, srlResult, start and end of a condition or action for each text.
+       - condition_action_data (list(dict(list))): containing the index for the sentence,
+            srlResult, start and end of a condition or action for each text.
        - results (list(list(dict))): containing all the SRL results for each text.
 
     Returns:
        - nothing.
     """
-    for index, condActRes in enumerate(conditionActionData):
-        sentKeys = condActRes.keys()
-        for key in sentKeys:
-            ca = condActRes[key]
+    for index, condition_action_result in enumerate(condition_action_data):
+        sent_keys = condition_action_result.keys()
+        for key in sent_keys:
+            condition_action = condition_action_result[key]
             sent = results[index][key]["words"]
-            if ca[0]:
-                conditionData = ca[0]
-                condition = " ".join(sent[conditionData[2] : conditionData[3] + 1])
+            if condition_action[0]:
+                condition_data = condition_action[0]
+                condition = " ".join(sent[condition_data[2] : condition_data[3] + 1])
                 print("s{},c: {}".format(key, condition))
-            if ca[1]:
-                actionData = ca[1]
-                action = " ".join(sent[actionData[2] : actionData[3] + 1])
+            if condition_action[1]:
+                action_data = condition_action[1]
+                action = " ".join(sent[action_data[2] : action_data[3] + 1])
                 print("s{},a: {}".format(key, action))
