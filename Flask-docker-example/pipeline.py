@@ -667,14 +667,14 @@ class Pipeline:
             if found_contra_coref_keys:
                 return [previous_node, len(conditional_results)]
             else:
-                merge_node = self.act_interface.create_add_node(
+                merge_node_key = self.act_interface.create_add_node(
                     activity_id, "Merge", {"name": "MergeNode"}
                 )
                 self.act_interface.create_connection(
-                    activity_id, previous_node, merge_node, {"guard": guard}
+                    activity_id, previous_node, merge_node_key, {"guard": guard}
                 )
                 # return the merge node.
-                return [merge_node, len(conditional_results)]
+                return [merge_node_key, len(conditional_results)]
 
         for index, avo_sent in enumerate(conditional_results):
             if index != 0:
@@ -771,27 +771,10 @@ class Pipeline:
                 pass
         # everything done? -> create a merge node and a connection from each merge nodes.
         # TODO What happens in the case of a coref line.
-        merge_node = self.act_interface.create_add_node(
-            activity_id, "Merge", {"name": "MergeNode"}
+        merge_node_key = self.act_interface.make_connection_from_nodes_to_merge_node(
+            nodes_to_be_merged_dict, activity_id
         )
-        # create merge node
-        print(nodes_to_be_merged)
-        for node_merge_index_key in nodes_to_be_merged_dict:
-            # create connection to merge node
-            node_data = nodes_to_be_merged_dict[node_merge_index_key]
-            print(
-                "activity_id {}, node {}, merge_node {}".format(
-                    activity_id, node_data["node_id"], merge_node
-                )
-            )
-            self.act_interface.create_connection(
-                activity_id,
-                node_data["node_id"],
-                merge_node,
-                {"guard": node_data["guard"]},
-            )
-        # return the merge node.
-        return [merge_node, len(conditional_results)]
+        return [merge_node_key, len(conditional_results)]
 
     def create_model_using_avo(
         self, activity_name: str, agent_verb_object_results: list

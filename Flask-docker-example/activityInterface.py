@@ -246,7 +246,16 @@ class ActivityInterface:
         return node_ch
 
     def create_add_node(self, activity_id: int, node_type: str, args: dict) -> str:
-        """Create a node and add it to the list of nodes and changes"""
+        """Create a node and add it to the list of nodes and changes
+
+        Args:
+            - activity_id (int): id of the activity the node is part of.
+            - node_type (str): type of node we build.
+            - args (dict): arguments in a dict that we add to the node.
+
+        Returns
+            - nodeKey (str): key to the node in the changes and nodes.
+        """
         if activity_id is None or not isinstance(activity_id, int):
             print(
                 "Problem with creation of action. Activity id not there or not integer"
@@ -763,3 +772,35 @@ class ActivityInterface:
                     {"guard": to_connection["guard"]},
                 )
                 self.delete_node(merge_node_id)
+
+    def make_connection_from_nodes_to_merge_node(
+        self, nodes_to_be_merged_dict: dict, activity_id: int
+    ) -> str:
+        """Connect all nodes that need to be merged to a merge node.
+
+        Args:
+            - nodes_to_be_merged_dict (dict): dict with all nodes that
+                need to be merged and their corresponding data, e.g. guards.
+            - activity_id (int): of which the data is part.
+
+        Returns
+            - merge_node_key (str): key of the merge node we close everything to.
+        """
+        merge_node_key = self.create_add_node(
+            activity_id, "Merge", {"name": "MergeNode"}
+        )
+        for node_merge_index_key in nodes_to_be_merged_dict:
+            # create connection to merge node
+            node_data = nodes_to_be_merged_dict[node_merge_index_key]
+            # print(
+            #     "activity_id {}, node {}, merge_node_key {}".format(
+            #         activity_id, node_data["node_id"], merge_node_key
+            #     )
+            # )
+            self.create_connection(
+                activity_id,
+                node_data["node_id"],
+                merge_node_key,
+                {"guard": node_data["guard"]},
+            )
+        return merge_node_key
