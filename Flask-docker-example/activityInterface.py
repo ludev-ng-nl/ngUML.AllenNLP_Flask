@@ -1,5 +1,4 @@
-import copy
-from dataclasses import dataclass
+"""Module to define Activity_interface which interacts with the django backend."""
 from typing import Dict, List, Union
 import uuid
 import json
@@ -9,133 +8,11 @@ import spacy
 from error_handler import handle_request_error
 from nltk.tokenize import RegexpTokenizer
 from indicators import termination_indicators
+from node import Node, NodeChange
+from connection import Connection, ConnectionChange
+from activity import Activity
 
 nlp_spacy = spacy.load("en_core_web_sm")
-
-
-@dataclass
-class Activity:
-    id: int
-    type: str
-    name: str
-    precondition: str
-    postcondition: str
-    is_read_only: bool
-    is_single_execution: bool
-    action_id: str
-    node_key: str
-    retype_definition: str
-
-    def create_backend_dict(self) -> dict:
-        activity_copy = copy.deepcopy(self.__dict__)
-        activity_dict = {}
-        activity_dict["type"] = self.type
-        activity_dict["nodekey"] = self.node_key
-        activity_dict["to"] = activity_copy
-        activity_dict["to"]["isReadOnly"] = self.is_read_only
-        activity_dict["to"]["isSingleExecution"] = self.is_single_execution
-        activity_dict["to"]["action"] = self.action_id
-        activity_dict["to"]["retype"] = self.retype_definition
-        activity_dict["to"].pop("type")
-        activity_dict["to"].pop("node_key")
-        activity_dict["to"].pop("is_read_only")
-        activity_dict["to"].pop("is_single_execution")
-        activity_dict["to"].pop("action_id")
-        activity_dict["to"].pop("retype_definition")
-        return activity_dict
-
-
-@dataclass
-class Node:
-    type: str
-    name: str
-    activity_id: int
-    description: str
-    instances: dict
-    id: int
-
-    def create_backend_dict(self) -> dict:
-        """Create a dict of the node to post."""
-        node_copy = copy.deepcopy(self.__dict__)
-        # node_dict = {}
-        node_copy["data"] = {}
-        node_copy["data"]["description"] = self.description
-        node_copy["data"]["activity_id"] = self.activity_id
-        node_copy.pop("description")
-        node_copy.pop("activity_id")
-        return node_copy
-
-
-@dataclass
-class NodeChange:
-    type: str
-    node_type: str
-    activity_id: int
-    key: str
-    node_key: str
-    x_axis: int
-    y_axis: int
-    name: str
-    description: str
-
-    def create_backend_dict(self) -> dict:
-        node_copy = copy.deepcopy(self.__dict__)
-        node_change_dict = {}
-        node_change_dict["to"] = node_copy
-        node_change_dict["type"] = self.type
-        node_change_dict["to"]["position"] = {"x": self.x_axis, "y": self.y_axis}
-        node_change_dict["to"]["type"] = self.node_type
-        node_change_dict["nodeKey"] = self.node_key
-        node_change_dict["key"] = None
-        node_change_dict["to"].pop("x_axis")
-        node_change_dict["to"].pop("y_axis")
-        node_change_dict["to"].pop("node_type")
-        node_change_dict["to"].pop("node_key")
-        node_change_dict["to"].pop("key")
-        return node_change_dict
-
-
-@dataclass
-class Connection:
-    guard: str
-    weight: str
-    from_id: str
-    to_id: str
-    from_node_key: str
-    to_node_key: str
-    id: int
-
-    def create_backend_dict(self) -> dict:
-        connection_dict = copy.deepcopy(self.__dict__)
-        connection_dict["from"] = self.from_node_key
-        connection_dict.pop("from_node_key")
-        connection_dict["to"] = self.to_node_key
-        connection_dict.pop("to_node_key")
-        return connection_dict
-
-
-@dataclass
-class ConnectionChange:
-    type: str
-    guard: str
-    weight: str
-    from_node_key: str
-    to_node_key: str
-    activity_id: int
-    key: str
-
-    def create_backend_dict(self) -> dict:
-        connection_dict = {}
-        connection_dict["to"] = copy.deepcopy(self.__dict__)
-        connection_dict["type"] = self.type
-        connection_dict["key"] = self.key
-        connection_dict["to"]["from"] = self.from_node_key
-        connection_dict["to"]["to"] = self.to_node_key
-        connection_dict["to"].pop("from_node_key")
-        connection_dict["to"].pop("to_node_key")
-        connection_dict["to"].pop("type")
-        connection_dict["to"].pop("key")
-        return connection_dict
 
 
 class ActivityInterface:
@@ -408,6 +285,7 @@ class ActivityInterface:
         return connection_post_data
 
     def create_changes_post_data(self) -> list:
+        """Create a changes dictionary to post to the backend."""
         changes_data = []
         for change in self.changes:
             change_data = change.create_backend_dict()
