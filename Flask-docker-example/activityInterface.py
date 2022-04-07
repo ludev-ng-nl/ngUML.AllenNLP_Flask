@@ -3,6 +3,7 @@ import json
 import requests
 import nltk
 import spacy
+from error_handler import handle_request_error
 from nltk.tokenize import RegexpTokenizer
 from indicators import termination_indicators
 
@@ -18,7 +19,7 @@ class ActivityInterface:
         self.changes = []
         self.post_url = "http://django:8000/model/data?uml-type=activity"
 
-    def service_online(self, url):
+    def service_online(self, url: str) -> bool:
         """Check if a url is returning some value."""
         try:
             get = requests.get(url)
@@ -26,14 +27,16 @@ class ActivityInterface:
                 # print(f"{self.url}: is reachable")
                 return True
             else:
-                print(
+                handle_request_error(
+                    404,
                     f"{url}: is Not reachable, status_code: "
-                    + "{get.status_code}. Is the ngUML Django service running?"
+                    + "{get.status_code}. Is the ngUML Django service running?",
                 )
                 return False
-        except requests.exceptions.RequestException as e:
-            print(
-                f"{url}: is Not reachable \nErr:{e}. Is the ngUML Django service running?"
+        except requests.exceptions.RequestException as exception:
+            handle_request_error(
+                404,
+                f"{url}: is Not reachable \nErr:{exception}. Is the ngUML Django service running?",
             )
             return False
 
@@ -129,81 +132,6 @@ class ActivityInterface:
             node["to"]["y"] = args["y"]
         node["nodeKey"] = str(uuid.uuid4())
         return node
-
-    def create_action_node(self, activity_id, args):
-        """Create Action Node
-
-        Args:
-           - activity_id (int): id of the activity which the node are part of.
-           - args (list): of different arguments
-
-        Returns:
-           an action node with the given arguments as data.
-        """
-        action_node = {}
-        action_node["type"] = "action"
-        action_node["name"] = args["name"]
-        action_node["data"] = {}
-        action_node["data"]["description"] = ""
-        if "description" in args:
-            action_node["data"]["description"] = args["description"]
-        action_node["data"]["activity_id"] = activity_id
-        action_node["instances"] = {}
-        action_node["id"] = len(self.nodes) + 1
-        return action_node
-
-    def create_action_change(self, activity_id, args):
-        """Create Action Node change, to specify in the list of changes.
-
-        Args:
-           - activity_id (int): id of the activity which the node are part of.
-           - args (list): of different arguments
-
-        Returns:
-           an action node change with the given arguments as data.
-        """
-        action = {}
-        action["type"] = "new-action"
-        action["to"] = {}
-        action["to"]["activity_id"] = activity_id
-        action["to"]["type"] = "Action"
-        action["to"]["position"] = {}
-        action["to"]["position"]["x"] = 0
-        action["to"]["position"]["y"] = 0
-        if "name" in args:
-            action["to"]["name"] = args["name"]
-        else:
-            action["to"]["name"] = ""
-        if "description" in args:
-            action["to"]["description"] = args["description"]
-        else:
-            action["to"]["description"] = ""
-        if "x" in args:
-            action["to"]["position"]["x"] = args["x"]
-        if "y" in args:
-            action["to"]["position"]["y"] = args["y"]
-        action["nodeKey"] = str(uuid.uuid4())
-        action["key"] = None
-        return action
-
-    def create_action(self, activity_id, args):
-        """Create action"""
-        if activity_id is None or not isinstance(activity_id, int):
-            print(
-                "Problem with creation of action. Activity id not there or not integer"
-            )
-            return {}
-        action_node = self.create_action_node(activity_id, args)
-        action_change = self.create_action_change(activity_id, args)
-        return [action_node, action_change]
-
-    def add_action_to_nodes(self, activity_id, args):
-        """Add action to the list of nodes"""
-        action = self.create_action(activity_id, args)
-        node = action[0]
-        change = action[1]
-        self.nodes[change["nodeKey"]] = node
-        self.changes.append(change)
 
     def create_new_node(self, activity_id, node_type, args):
         """Create new node for nodes other than action nodes."""
@@ -804,3 +732,8 @@ class ActivityInterface:
                 {"guard": node_data["guard"]},
             )
         return merge_node_key
+
+    def find_begin_node(self) -> str:
+        """Find the begin node of the model."""
+        possible_begin_nodes = self.get_all_node_keys_by_type("Initial")
+        return possible_begin_nodes[0]
