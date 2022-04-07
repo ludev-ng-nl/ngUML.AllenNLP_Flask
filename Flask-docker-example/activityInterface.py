@@ -1,3 +1,5 @@
+from dataclasses import dataclass
+from typing import Dict
 import uuid
 import json
 import requests
@@ -10,8 +12,31 @@ from indicators import termination_indicators
 nlp_spacy = spacy.load("en_core_web_sm")
 
 
+@dataclass
+class Node:
+    type: str
+    name: str
+    activity_id: int
+    description: str
+    instances: dict
+    id: int
+
+    def create_backend_dict(self) -> dict:
+        """Create a dict of the node to post."""
+        node_dict = self.__dict__
+        # node_dict = {}
+        node_dict["data"] = {}
+        node_dict["data"]["description"] = self.description
+        node_dict["data"]["activity_id"] = self.activity_id
+        node_dict.pop("description")
+        node_dict.pop("activity_id")
+        return node_dict
+
+
 class ActivityInterface:
     """ActivityInterface to organise all activity related methods."""
+
+    nodes: Dict[str, Node]
 
     def __init__(self) -> None:
         self.nodes = {}
@@ -80,72 +105,18 @@ class ActivityInterface:
         activity["nodekey"] = str(uuid.uuid4())
         return activity
 
-    def create_node(self, name, node_type, activity_id, args):
-        """Create a dictionary item containing a node.
-
-        Description:
-            The node can be different types.
-
-        Args:
-            - name (str): name of the activity
-            - node_type (str): type can be the following:
-                ['new-initial', 'new-action','new-activityFinal',
-                'new-flowFinal','new-fork','new-merge','new-join',
-                'new-decision']
-            - activity_id (int): activity id to which the node is part of.
-                such as 1 or 2. This is the key from the backend.
-            - args (list): containing the different options that could be
-                in the activity node
-
-        Returns:
-            - node (dict): node containing the data, such as a action,
-                initial or decision node.
-        """
-        allowed_types = [
-            "new-initial",
-            "new-action",
-            "new-activityFinal",
-            "new-flowFinal",
-            "new-fork",
-            "new-merge",
-            "new-join",
-            "new-decision",
-        ]
-        if node_type not in allowed_types:
-            print(
-                (
-                    "The given type: {}. Is not in the allowed-types, "
-                    + "please give an allowed type such as:\n{}"
-                ).format(node_type, ", ".join(allowed_types))
-            )
-            return
-        node = {}
-        node["type"] = node_type
-        node["to"] = {}
-        node["to"]["name"] = name
-        node["to"]["activity_id"] = activity_id
-        if "description" in args:
-            node["to"]["description"] = args["description"]
-        if "x" in args:
-            node["to"]["x"] = args["x"]
-        if "y" in args:
-            node["to"]["y"] = args["y"]
-        node["nodeKey"] = str(uuid.uuid4())
-        return node
-
-    def create_new_node(self, activity_id, node_type, args):
+    def create_new_node(self, activity_id: int, node_type: str, args: dict) -> Node:
         """Create new node for nodes other than action nodes."""
-        node = {}
-        node["type"] = node_type
-        node["name"] = args["name"]
-        node["data"] = {}
-        node["data"]["description"] = ""
-        if "description" in args:
-            node["data"]["description"] = args["description"]
-        node["data"]["activity_id"] = activity_id
-        node["instances"] = {}
-        node["id"] = len(self.nodes) + 1
-        return node
+        name = args["name"] if "name" in args else ""
+        description = args["description"] if "description" in args else ""
+        return Node(
+            type=node_type,
+            name=name,
+            activity_id=activity_id,
+            description=description,
+            instances={},
+            id=len(self.nodes) + 1,
+        )
 
     def create_node_change(self, activity_id, node_type, args):
         """Create node change for nodes other than the action node."""
@@ -246,8 +217,8 @@ class ActivityInterface:
         if "weight" in args:
             conn["weight"] = args["weight"]
         conn["id"] = len(self.connections) + 1
-        conn["from_id"] = self.nodes[from_id]["id"]
-        conn["to_id"] = self.nodes[to_id]["id"]
+        conn["from_id"] = self.nodes[from_id].id
+        conn["to_id"] = self.nodes[to_id].id
         self.connections[key] = conn
 
         conn_change = {}
@@ -340,11 +311,18 @@ class ActivityInterface:
         self.connections = {}
         self.changes = []
 
+    def create_node_post_data(self):
+        """Create the node dictionary to post to the backend."""
+        node_post_data = {}
+        for node_key, node_data in self.nodes.items():
+            node_post_data[node_key] = node_data.create_backend_dict()
+        return node_post_data
+
     def post_data(self):
         """Create a dict to post the data.
         TODO new name."""
         data = {}
-        data["nodes"] = self.nodes
+        data["nodes"] = self.create_node_post_data()
         data["connections"] = self.connections
         data["changes"] = self.changes
         return data
@@ -372,7 +350,7 @@ class ActivityInterface:
 
         Returns:
            - node_keys (list): a list of keys of conditional nodes."""
-        return [key for key in self.nodes if self.nodes[key]["type"] == node_type]
+        return [key for key in self.nodes if self.nodes[key].type == node_type]
 
     def get_connections_using_node_id(self, node_id: str, from_node: bool) -> str:
         """Get the connections with the from node id.
@@ -452,7 +430,7 @@ class ActivityInterface:
                 print("Node search exceeded max node depth.")
                 break
             current_node = self.nodes[current_node_id]
-            if current_node["type"] == search_node_type:
+            if current_node.type == search_node_type:
                 found_node_id = current_node_id
                 break
             if current_node_id == start_node_id and index > 0:
@@ -534,7 +512,7 @@ class ActivityInterface:
                 connection = self.connections[connection_id]
                 previous_node_id = connection["from"]
                 previous_node = self.nodes[previous_node_id]
-                if previous_node["type"] == "Action":
+                if previous_node.type == "Action":
                     last_actions.append(previous_node_id)
         return last_actions
 
@@ -590,7 +568,7 @@ class ActivityInterface:
         action_with_termination_ids = []
         for node_id in action_ids:
             node = self.nodes[node_id]
-            action = node["name"]
+            action = node.name
             print(action)
             termination_action_id = self.find_termination_verb_from_text(
                 action, words_only_tokenizer, termination_lemmas
@@ -658,7 +636,7 @@ class ActivityInterface:
                 connection_id = self.get_connections_using_from_node_id(action_id)
                 self.delete_connection(connection_id[0])
                 action_node = self.nodes[action_id]
-                activity_id = action_node["data"]["activity_id"]
+                activity_id = action_node.activity_id
                 activity_final = self.create_add_node(
                     activity_id, "ActivityFinal", {"name": "Final"}
                 )
@@ -674,7 +652,7 @@ class ActivityInterface:
                 # found a condition with only one outgoing condition.
                 # take the first merge_node, as we are not sure.
                 merge_node_id = merge_node_ids[0]
-                activity_id = self.nodes[conditional_id]["data"]["activity_id"]
+                activity_id = self.nodes[conditional_id].activity_id
                 self.create_connection(
                     activity_id, conditional_id, merge_node_id, {"guard": "else"}
                 )
@@ -692,7 +670,7 @@ class ActivityInterface:
                     merge_node_id
                 )
                 next_node_id = self.connections[outgoing_connections[0]]["to"]
-                activity_id = self.nodes[merge_node_id]["data"]["activity_id"]
+                activity_id = self.nodes[merge_node_id].activity_id
                 self.create_connection(
                     activity_id,
                     previous_id,
