@@ -1,5 +1,6 @@
+import copy
 from dataclasses import dataclass
-from typing import Dict
+from typing import Dict, List, Union
 import uuid
 import json
 import requests
@@ -13,6 +14,38 @@ nlp_spacy = spacy.load("en_core_web_sm")
 
 
 @dataclass
+class Activity:
+    id: int
+    type: str
+    name: str
+    precondition: str
+    postcondition: str
+    is_read_only: bool
+    is_single_execution: bool
+    action_id: str
+    node_key: str
+    retype_definition: str
+
+    def create_backend_dict(self) -> dict:
+        activity_copy = copy.deepcopy(self.__dict__)
+        activity_dict = {}
+        activity_dict["type"] = self.type
+        activity_dict["nodekey"] = self.node_key
+        activity_dict["to"] = activity_copy
+        activity_dict["to"]["isReadOnly"] = self.is_read_only
+        activity_dict["to"]["isSingleExecution"] = self.is_single_execution
+        activity_dict["to"]["action"] = self.action_id
+        activity_dict["to"]["retype"] = self.retype_definition
+        activity_dict["to"].pop("type")
+        activity_dict["to"].pop("node_key")
+        activity_dict["to"].pop("is_read_only")
+        activity_dict["to"].pop("is_single_execution")
+        activity_dict["to"].pop("action_id")
+        activity_dict["to"].pop("retype_definition")
+        return activity_dict
+
+
+@dataclass
 class Node:
     type: str
     name: str
@@ -23,20 +56,94 @@ class Node:
 
     def create_backend_dict(self) -> dict:
         """Create a dict of the node to post."""
-        node_dict = self.__dict__
+        node_copy = copy.deepcopy(self.__dict__)
         # node_dict = {}
-        node_dict["data"] = {}
-        node_dict["data"]["description"] = self.description
-        node_dict["data"]["activity_id"] = self.activity_id
-        node_dict.pop("description")
-        node_dict.pop("activity_id")
-        return node_dict
+        node_copy["data"] = {}
+        node_copy["data"]["description"] = self.description
+        node_copy["data"]["activity_id"] = self.activity_id
+        node_copy.pop("description")
+        node_copy.pop("activity_id")
+        return node_copy
+
+
+@dataclass
+class NodeChange:
+    type: str
+    node_type: str
+    activity_id: int
+    key: str
+    node_key: str
+    x_axis: int
+    y_axis: int
+    name: str
+    description: str
+
+    def create_backend_dict(self) -> dict:
+        node_copy = copy.deepcopy(self.__dict__)
+        node_change_dict = {}
+        node_change_dict["to"] = node_copy
+        node_change_dict["type"] = self.type
+        node_change_dict["to"]["position"] = {"x": self.x_axis, "y": self.y_axis}
+        node_change_dict["to"]["type"] = self.node_type
+        node_change_dict["nodeKey"] = self.node_key
+        node_change_dict["key"] = None
+        node_change_dict["to"].pop("x_axis")
+        node_change_dict["to"].pop("y_axis")
+        node_change_dict["to"].pop("node_type")
+        node_change_dict["to"].pop("node_key")
+        node_change_dict["to"].pop("key")
+        return node_change_dict
+
+
+@dataclass
+class Connection:
+    guard: str
+    weight: str
+    from_id: str
+    to_id: str
+    from_node_key: str
+    to_node_key: str
+    id: int
+
+    def create_backend_dict(self) -> dict:
+        connection_dict = copy.deepcopy(self.__dict__)
+        connection_dict["from"] = self.from_node_key
+        connection_dict.pop("from_node_key")
+        connection_dict["to"] = self.to_node_key
+        connection_dict.pop("to_node_key")
+        return connection_dict
+
+
+@dataclass
+class ConnectionChange:
+    type: str
+    guard: str
+    weight: str
+    from_node_key: str
+    to_node_key: str
+    activity_id: int
+    key: str
+
+    def create_backend_dict(self) -> dict:
+        connection_dict = {}
+        connection_dict["to"] = copy.deepcopy(self.__dict__)
+        connection_dict["type"] = self.type
+        connection_dict["key"] = self.key
+        connection_dict["to"]["from"] = self.from_node_key
+        connection_dict["to"]["to"] = self.to_node_key
+        connection_dict["to"].pop("from_node_key")
+        connection_dict["to"].pop("to_node_key")
+        connection_dict["to"].pop("type")
+        connection_dict["to"].pop("key")
+        return connection_dict
 
 
 class ActivityInterface:
     """ActivityInterface to organise all activity related methods."""
 
     nodes: Dict[str, Node]
+    connections: Dict[str, Connection]
+    changes: List[Union[Activity, NodeChange, ConnectionChange]]
 
     def __init__(self) -> None:
         self.nodes = {}
@@ -76,7 +183,7 @@ class ActivityInterface:
         response = json.loads(result.content)
         return response["activities"]
 
-    def create_activity(self, name, args):
+    def create_activity(self, name: str, args: dict) -> Activity:
         """Create a dictionary item containing an activity.
 
         Args:
@@ -86,24 +193,20 @@ class ActivityInterface:
         Returns:
            - activity (dict): activity containing the data.
         """
-        activity = {}
-        activity["type"] = "new-activity"
-        activity["to"] = {}
-        activity["to"]["name"] = name
-        if "precondition" in args:
-            activity["to"]["precondition"] = args["precondition"]
-        if "postcondition" in args:
-            activity["to"]["postcondition"] = args["postcondition"]
-        if "isReadOnly" in args:
-            activity["to"]["isReadOnly"] = args["isReadOnly"]
-        if "isSingleExecution" in args:
-            activity["to"]["isSingleExecution"] = args["isSingleExecution"]
-        if "action" in args:
-            activity["to"]["action"] = args["action"]
-        else:
-            activity["to"]["action"] = ""
-        activity["nodekey"] = str(uuid.uuid4())
-        return activity
+        return Activity(
+            id=None,
+            type="new-activity",
+            name=name,
+            precondition=args["precondition"] if "precondition" in args else "",
+            postcondition=args["postcondition"] if "postcondition" in args else "",
+            is_read_only=args["isReadOnly"] if "isReadOnly" in args else "",
+            is_single_execution=args["isSingleExecution"]
+            if "isSingleExecution" in args
+            else "",
+            action_id=args["action"] if "action" in args else "",
+            node_key=str(uuid.uuid4()),
+            retype_definition=None,
+        )
 
     def create_new_node(self, activity_id: int, node_type: str, args: dict) -> Node:
         """Create new node for nodes other than action nodes."""
@@ -120,29 +223,17 @@ class ActivityInterface:
 
     def create_node_change(self, activity_id, node_type, args):
         """Create node change for nodes other than the action node."""
-        node_ch = {}
-        node_ch["type"] = "new-" + node_type
-        node_ch["to"] = {}
-        node_ch["to"]["activity_id"] = activity_id
-        node_ch["to"]["type"] = node_type
-        node_ch["to"]["position"] = {}
-        node_ch["to"]["position"]["x"] = 0
-        node_ch["to"]["position"]["y"] = 0
-        if "name" in args:
-            node_ch["to"]["name"] = args["name"]
-        else:
-            node_ch["to"]["name"] = ""
-        if "description" in args:
-            node_ch["to"]["description"] = args["description"]
-        else:
-            node_ch["to"]["description"] = ""
-        if "x" in args:
-            node_ch["to"]["position"]["x"] = args["x"]
-        if "y" in args:
-            node_ch["to"]["position"]["y"] = args["y"]
-        node_ch["nodeKey"] = str(uuid.uuid4())
-        node_ch["key"] = None
-        return node_ch
+        return NodeChange(
+            type="new-" + node_type,
+            node_type=node_type,
+            activity_id=activity_id,
+            name=args["name"] if "name" in args else "",
+            description=args["description"] if "description" in args else "",
+            x_axis=args["x"] if "x" in args else 0,
+            y_axis=args["y"] if "y" in args else 0,
+            node_key=str(uuid.uuid4()),
+            key=None,
+        )
 
     def create_add_node(self, activity_id: int, node_type: str, args: dict) -> str:
         """Create a node and add it to the list of nodes and changes
@@ -153,7 +244,7 @@ class ActivityInterface:
             - args (dict): arguments in a dict that we add to the node.
 
         Returns
-            - nodeKey (str): key to the node in the changes and nodes.
+            - node_key (str): key to the node in the changes and nodes.
         """
         if activity_id is None or not isinstance(activity_id, int):
             print(
@@ -162,9 +253,9 @@ class ActivityInterface:
             return
         node = self.create_new_node(activity_id, node_type, args)
         change = self.create_node_change(activity_id, node_type, args)
-        self.nodes[change["nodeKey"]] = node
+        self.nodes[change.node_key] = node
         self.changes.append(change)
-        return change["nodeKey"]
+        return change.node_key
 
     def delete_node(self, node_id: str) -> None:
         """Delete node and connections that are part of it."""
@@ -179,25 +270,14 @@ class ActivityInterface:
         node_changes = [
             change
             for change in self.changes
-            if "nodeKey" in change and change["nodeKey"] == node_id
+            if isinstance(change, NodeChange) and change.node_key == node_id
         ]
         if len(node_changes) > 1:
             print("More node changes than one. We only delete the first.")
         node_change = node_changes[0]
         self.changes.remove(node_change)
         del self.nodes[node_id]
-
-    def create_empty_connection(self):
-        """Create empty connection."""
-        connection = {}
-        connection["guard"] = ""
-        connection["weight"] = ""
-        connection["from_id"] = ""
-        connection["to_id"] = ""
-        connection["from"] = ""
-        connection["to"] = ""
-        connection["id"] = -1
-        return connection
+        return
 
     def create_connection(
         self, activity_id: int, from_id: str, to_id: str, args: dict
@@ -209,26 +289,28 @@ class ActivityInterface:
             )
             return {}
         key = str(uuid.uuid4())
-        conn = self.create_empty_connection()
-        conn["from"] = from_id
-        conn["to"] = to_id
-        if "guard" in args:
-            conn["guard"] = args["guard"]
-        if "weight" in args:
-            conn["weight"] = args["weight"]
-        conn["id"] = len(self.connections) + 1
-        conn["from_id"] = self.nodes[from_id].id
-        conn["to_id"] = self.nodes[to_id].id
+        guard = args["guard"] if "guard" in args else ""
+        weight = args["weight"] if "weight" in args else ""
+        conn = Connection(
+            guard=guard,
+            weight=weight,
+            from_node_key=from_id,
+            to_node_key=to_id,
+            from_id=self.nodes[from_id].id,
+            to_id=self.nodes[to_id].id,
+            id=len(self.connections) + 1,
+        )
         self.connections[key] = conn
 
-        conn_change = {}
-        conn_change["type"] = "new-connection"
-        conn_change["to"] = conn.copy()
-        del conn_change["to"]["from_id"]
-        del conn_change["to"]["to_id"]
-        del conn_change["to"]["id"]
-        conn_change["to"]["activity_id"] = activity_id
-        conn_change["key"] = key
+        conn_change = ConnectionChange(
+            type="new-connection",
+            guard=guard,
+            weight=weight,
+            from_node_key=from_id,
+            to_node_key=to_id,
+            activity_id=activity_id,
+            key=key,
+        )
         self.changes.append(conn_change)
         return conn
 
@@ -237,7 +319,7 @@ class ActivityInterface:
         connection_changes = [
             change
             for change in self.changes
-            if change["type"] == "new-connection" and change["key"] == connection_id
+            if change.type == "new-connection" and change.key == connection_id
         ]
         if not connection_changes:
             print(
@@ -259,7 +341,7 @@ class ActivityInterface:
         data["changes"] = []
         return data
 
-    def create_activity_server(self, activity):
+    def create_activity_server(self, activity: Activity) -> int:
         """Creates an activity on the server and returns id
 
         Description:
@@ -281,7 +363,7 @@ class ActivityInterface:
             - activity_id: returns the id of the created activity.
         """
         data = self.create_post_data_dict()
-        data["changes"].append(activity)
+        data["changes"].append(activity.create_backend_dict())
         if not self.service_online(self.post_url):
             return -1
         result = requests.post(self.post_url, json=data)
@@ -292,17 +374,17 @@ class ActivityInterface:
         activities = self.get_activities_from_server()
         act_id = -1
         for key in activities.keys():
-            if activity["to"]["name"] == activities[key]["name"]:
+            if activity.name == activities[key]["name"]:
                 act_id = activities[key]["id"]
         return act_id
 
-    def create_activity_retype(self, activity_id, name):
+    def create_activity_retype(self, activity_id: int, name: str) -> Activity:
         """Create a retype of an activity."""
         act = self.create_activity(name, {})
-        act["type"] = "retype-activity"
-        act["to"]["retype"] = "name"
-        act["to"]["name"] = name
-        act["to"]["id"] = activity_id
+        act.type = "retype-activity"
+        act.retype_definition = "name"
+        act.name = name
+        act.id = activity_id
         return act
 
     def clear_data(self):
@@ -318,13 +400,27 @@ class ActivityInterface:
             node_post_data[node_key] = node_data.create_backend_dict()
         return node_post_data
 
-    def post_data(self):
-        """Create a dict to post the data.
-        TODO new name."""
+    def create_connection_post_data(self):
+        """Create the connection dictionary to post to the backend."""
+        connection_post_data = {}
+        for connection_key, connection_data in self.connections.items():
+            connection_post_data[connection_key] = connection_data.create_backend_dict()
+        return connection_post_data
+
+    def create_changes_post_data(self) -> list:
+        changes_data = []
+        for change in self.changes:
+            change_data = change.create_backend_dict()
+            changes_data.append(change_data)
+        # return [change.create_backend_dict() for change in self.changes]
+        return changes_data
+
+    def create_post_data(self) -> dict:
+        """Create a dict to post the data."""
         data = {}
         data["nodes"] = self.create_node_post_data()
-        data["connections"] = self.connections
-        data["changes"] = self.changes
+        data["connections"] = self.create_connection_post_data()
+        data["changes"] = self.create_changes_post_data()
         return data
 
     def post_activity_data_to_server(self, url, data):
@@ -362,12 +458,18 @@ class ActivityInterface:
            - connection_ids (list): a list of all connection_ids,
               with each as a string
         """
-        direction = "from" if from_node else "to"
-        return [
-            connection_id
-            for connection_id in self.connections
-            if self.connections[connection_id][direction] == node_id
-        ]
+        if from_node:
+            return [
+                connection_id
+                for connection_id in self.connections
+                if self.connections[connection_id].from_node_key == node_id
+            ]
+        else:
+            return [
+                connection_id
+                for connection_id in self.connections
+                if self.connections[connection_id].to_node_key == node_id
+            ]
 
     def get_connections_using_from_node_id(self, from_node_id: str) -> list:
         """Get the connections with the from node id.
@@ -444,7 +546,7 @@ class ActivityInterface:
                 break
             # If there are multiple connections we take the first.
             connection = self.connections[connection_ids[0]]
-            current_node_id = connection["to"]
+            current_node_id = connection.to_node_key
             if not current_node_id in self.nodes:
                 break
             index += 1
@@ -474,7 +576,7 @@ class ActivityInterface:
         for condition_node_id, connections in conditional_node_connections.items():
             for connection_id in connections:
                 connection = self.connections[connection_id]
-                start_node_id = connection["to"]
+                start_node_id = connection.to_node_key
                 end_node = self.get_first_node_of_type(start_node_id, "Merge")
                 if end_node:
                     if condition_node_id in merge_nodes_per_condition_node:
@@ -510,7 +612,7 @@ class ActivityInterface:
             connection_ids = self.get_connections_to_node_id(merge_id)
             for connection_id in connection_ids:
                 connection = self.connections[connection_id]
-                previous_node_id = connection["from"]
+                previous_node_id = connection.from_node_key
                 previous_node = self.nodes[previous_node_id]
                 if previous_node.type == "Action":
                     last_actions.append(previous_node_id)
@@ -561,7 +663,8 @@ class ActivityInterface:
                 words.
 
         Returns:
-            - action_with_termination_ids (list): list of action_ids that contain a termination word.
+            - action_with_termination_ids (list): list of action_ids that contain a termination
+                word.
         """
 
         # for action_ids in action_ids_per_condition:
@@ -665,17 +768,17 @@ class ActivityInterface:
             to_connections = self.get_connections_to_node_id(merge_node_id)
             if len(to_connections) == 1:
                 to_connection = self.connections[to_connections[0]]
-                previous_id = to_connection["from"]
+                previous_id = to_connection.from_node_key
                 outgoing_connections = self.get_connections_using_from_node_id(
                     merge_node_id
                 )
-                next_node_id = self.connections[outgoing_connections[0]]["to"]
+                next_node_id = self.connections[outgoing_connections[0]].to_node_key
                 activity_id = self.nodes[merge_node_id].activity_id
                 self.create_connection(
                     activity_id,
                     previous_id,
                     next_node_id,
-                    {"guard": to_connection["guard"]},
+                    {"guard": to_connection.guard},
                 )
                 self.delete_node(merge_node_id)
 

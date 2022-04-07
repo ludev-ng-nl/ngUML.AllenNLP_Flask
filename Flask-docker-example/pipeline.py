@@ -190,7 +190,8 @@ class Pipeline:
         """Create an activity node on the server and return it's id."""
         activity = self.act_interface.create_activity(activity_name, {})
         activity_id = self.act_interface.create_activity_server(activity)
-        activity["type"] = "retype-activity"
+        activity.type = "retype-activity"
+        activity.id = activity_id
         self.act_interface.changes.append(activity)
         return activity_id
 
@@ -1000,7 +1001,7 @@ class Pipeline:
         self.act_interface.identify_termination_actions_and_add_termination()
         # remove single merge nodes.
         self.act_interface.remove_single_merge_nodes()
-        data = self.act_interface.post_data()
+        data = self.act_interface.create_post_data()
         return self.act_interface.post_activity_data_to_server(
             self.act_interface.post_url, data
         )
