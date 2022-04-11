@@ -8,7 +8,7 @@ import spacy
 from error_handler import handle_request_error
 from nltk.tokenize import RegexpTokenizer
 from indicators import termination_indicators
-from node import Node, NodeChange
+from node import Node, NodeChange, NodeType
 from connection import Connection, ConnectionChange
 from activity import Activity
 
@@ -85,7 +85,9 @@ class ActivityInterface:
             retype_definition=None,
         )
 
-    def create_new_node(self, activity_id: int, node_type: str, args: dict) -> Node:
+    def create_new_node(
+        self, activity_id: int, node_type: NodeType, args: dict
+    ) -> Node:
         """Create new node for nodes other than action nodes."""
         name = args["name"] if "name" in args else ""
         description = args["description"] if "description" in args else ""
@@ -101,7 +103,7 @@ class ActivityInterface:
     def create_node_change(self, activity_id, node_type, args):
         """Create node change for nodes other than the action node."""
         return NodeChange(
-            type="new-" + node_type,
+            type="new-" + str(node_type),
             node_type=node_type,
             activity_id=activity_id,
             name=args["name"] if "name" in args else "",
@@ -112,7 +114,7 @@ class ActivityInterface:
             key=None,
         )
 
-    def create_add_node(self, activity_id: int, node_type: str, args: dict) -> str:
+    def create_add_node(self, activity_id: int, node_type: NodeType, args: dict) -> str:
         """Create a node and add it to the list of nodes and changes
 
         Args:
@@ -316,11 +318,11 @@ class ActivityInterface:
         result = requests.post(url, json=data)
         return result
 
-    def get_all_node_keys_by_type(self, node_type: str) -> list:
+    def get_all_node_keys_by_type(self, node_type: NodeType) -> list:
         """return all conditional node keys.
 
         Args:
-           - node_type (str): a node type we filter on. i.e. Decision or Merge
+           - node_type (NodeType): a node type we filter on. i.e. Decision or Merge
 
         Returns:
            - node_keys (list): a list of keys of conditional nodes."""
@@ -390,12 +392,14 @@ class ActivityInterface:
             connections_per_node[node_key] = node_connections
         return connections_per_node
 
-    def get_first_node_of_type(self, start_node_id: str, search_node_type: str) -> str:
+    def get_first_node_of_type(
+        self, start_node_id: str, search_node_type: NodeType
+    ) -> str:
         """Find the first node of a certain type while going through the nodes.
 
         Args:
             - start_node_id (str): the node we are starting from.
-            - search_node_type (str): the type we are looking for.
+            - search_node_type (NodeType): the type we are looking for.
 
         Returns:
             - found_node_id (str): the id of the found node, if it is not found return None
@@ -446,7 +450,7 @@ class ActivityInterface:
            - merge_node_per_condition_node (dict): a list with all merge nodes that
                 can be accessed using the condition id.
         """
-        conditional_node_keys = self.get_all_node_keys_by_type("Decision")
+        conditional_node_keys = self.get_all_node_keys_by_type(NodeType.DECISION)
         conditional_node_connections = self.get_all_connections_for_nodes(
             conditional_node_keys
         )
@@ -455,7 +459,7 @@ class ActivityInterface:
             for connection_id in connections:
                 connection = self.connections[connection_id]
                 start_node_id = connection.to_node_key
-                end_node = self.get_first_node_of_type(start_node_id, "Merge")
+                end_node = self.get_first_node_of_type(start_node_id, NodeType.MERGE)
                 if end_node:
                     if condition_node_id in merge_nodes_per_condition_node:
                         if (
@@ -492,7 +496,7 @@ class ActivityInterface:
                 connection = self.connections[connection_id]
                 previous_node_id = connection.from_node_key
                 previous_node = self.nodes[previous_node_id]
-                if previous_node.type == "Action":
+                if previous_node.type == NodeType.ACTION:
                     last_actions.append(previous_node_id)
         return last_actions
 
@@ -619,7 +623,7 @@ class ActivityInterface:
                 action_node = self.nodes[action_id]
                 activity_id = action_node.activity_id
                 activity_final = self.create_add_node(
-                    activity_id, "ActivityFinal", {"name": "Final"}
+                    activity_id, NodeType.ACTIVITY_FINAL, {"name": "Final"}
                 )
                 self.create_connection(activity_id, action_id, activity_final, {})
         return
@@ -641,7 +645,7 @@ class ActivityInterface:
 
     def remove_single_merge_nodes(self) -> None:
         """Remove a merge node with only on incoming edge."""
-        merge_node_ids = self.get_all_node_keys_by_type("Merge")
+        merge_node_ids = self.get_all_node_keys_by_type(NodeType.MERGE)
         for merge_node_id in merge_node_ids:
             to_connections = self.get_connections_to_node_id(merge_node_id)
             if len(to_connections) == 1:
@@ -674,7 +678,7 @@ class ActivityInterface:
             - merge_node_key (str): key of the merge node we close everything to.
         """
         merge_node_key = self.create_add_node(
-            activity_id, "Merge", {"name": "MergeNode"}
+            activity_id, NodeType.MERGE, {"name": "MergeNode"}
         )
         for node_merge_index_key in nodes_to_be_merged_dict:
             # create connection to merge node
@@ -694,5 +698,134 @@ class ActivityInterface:
 
     def find_begin_node(self) -> str:
         """Find the begin node of the model."""
-        possible_begin_nodes = self.get_all_node_keys_by_type("Initial")
+        possible_begin_nodes = self.get_all_node_keys_by_type(NodeType.INITIAL)
         return possible_begin_nodes[0]
+
+    def make_connection_previous_to_next_node(self, current_node_id: str) -> str:
+        """Make a connection from the previous node to the node after the node_id
+
+        Args:
+            - current_node_id (str): the node around which we create a bypass.
+        Returns:
+            - None
+        """
+        incoming_connection_ids = self.get_connections_to_node_id(current_node_id)
+        if not incoming_connection_ids:
+            print("No incoming nodes found. So there is no node removed.")
+            return
+        incoming_connection = self.connections[incoming_connection_ids[0]]
+        previous_node_id = incoming_connection.from_node_key
+        outgoing_connection_ids = self.get_connections_using_from_node_id(
+            current_node_id
+        )
+        if not outgoing_connection_ids:
+            print("No outgoing nodes found. So there is no node removed.")
+            return
+        outgoing_connection = self.connections[outgoing_connection_ids[0]]
+        next_node_id = outgoing_connection.to_node_key
+        next_node = self.nodes[next_node_id]
+        # create connection
+        self.create_connection(
+            next_node.activity_id,
+            previous_node_id,
+            next_node_id,
+            {"guard": outgoing_connection.guard, "weight": outgoing_connection.weight},
+        )
+        return previous_node_id
+
+    def remove_double_action_in_conditional_struct(
+        self,
+        current_node_id: str,
+        conditional_structures: dict,
+        cond_previous_node_text: str,
+    ) -> str:
+        """Remove the double actions from a conditional structure.
+
+        Returns:
+            - node_id (str): the node id where we should continue. Could also be empty,
+                when there is no node to continue.
+        """
+        # check if node is in the conditional structure.
+        # if that is not the case we dont have an finishing mergenode, so probably
+        #   there are two activity final nodes.
+        # else we need to check and if we find the merge node we stop.
+        merge_node_id = ""
+        if current_node_id in conditional_structures:
+            # we only return the first merge node, but there could be multiple.
+            merge_node_id = conditional_structures[current_node_id][0]
+        # get connections -> look into the check for finished.
+        # check for each connection
+        # get_last_action_in_condition_path -> goes from the merge node back.
+        # which is not what we want. -> but we could reuse  it.
+        connection_ids = self.get_connections_using_from_node_id(current_node_id)
+        for connection_id in connection_ids:
+            previous_node_text = cond_previous_node_text
+            connection = self.connections[connection_id]
+            current_node_id = connection.to_node_key
+            while True:
+                node = self.nodes[current_node_id]
+                if node.type != NodeType.ACTION:
+                    break
+                if node.name == previous_node_text:
+                    # remove the node.
+                    previous_node_id = self.make_connection_previous_to_next_node(
+                        current_node_id
+                    )
+                    self.delete_node(current_node_id)
+                    current_node_id = previous_node_id
+                else:
+                    previous_node_text = node.name
+                connection_ids = self.get_connections_using_from_node_id(
+                    current_node_id
+                )
+                if not connection_ids:
+                    break
+                connection = self.connections[connection_ids[0]]
+                current_node_id = connection.to_node_key
+        return merge_node_id
+
+    def remove_double_actions(self):
+        """Check all actions and remove double actions.
+
+        Args:
+            - None
+
+        Returns
+            - None
+        """
+        previous_node_text = ""
+        begin_node_id = self.find_begin_node()
+        connection_ids = self.get_connections_using_from_node_id(begin_node_id)
+        if len(connection_ids) > 1:
+            print(
+                "we have multiple connection_ids from the start node, which is strange."
+            )
+        connection_id = connection_ids[0]
+        current_node_id = self.connections[connection_id].to_node_key
+        conditional_structures = self.get_all_conditional_structures()
+        while True:
+            # start at the begin node.
+            node = self.nodes[current_node_id]
+            if node.type == NodeType.ACTION:
+                if node.name == previous_node_text:
+                    previous_node_id = self.make_connection_previous_to_next_node(
+                        current_node_id
+                    )
+                    self.delete_node(current_node_id)
+                    current_node_id = previous_node_id
+            elif node.type == NodeType.DECISION:
+                merge_node_id = self.remove_double_action_in_conditional_struct(
+                    current_node_id, conditional_structures, previous_node_text
+                )
+                if not merge_node_id:
+                    # merge node is empty, so we found no node to continue.
+                    break
+                current_node_id = merge_node_id
+            elif node.type == NodeType.ACTIVITY_FINAL:
+                break
+            connection_ids = self.get_connections_using_from_node_id(current_node_id)
+            if not connection_ids:
+                break
+            connection = self.connections[connection_ids[0]]
+            current_node_id = connection.to_node_key
+            previous_node_text = node.name

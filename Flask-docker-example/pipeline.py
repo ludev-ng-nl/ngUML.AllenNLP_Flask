@@ -11,6 +11,7 @@ import semantic_role_labelling as sem_rol
 import coreference as corefer
 import entailment as entail
 from indicators import empty_conditional_indicators
+from node import NodeType
 
 
 nltk.download("averaged_perceptron_tagger")
@@ -198,7 +199,7 @@ class Pipeline:
     def create_condition(self, avo: dict, activity_id: int, previous_node: str) -> list:
         """Create a conditional node and return node id and guard."""
         decision = self.act_interface.create_add_node(
-            activity_id, "Decision", {"name": "ConditionNode"}
+            activity_id, NodeType.DECISION, {"name": "ConditionNode"}
         )
         self.act_interface.create_connection(activity_id, previous_node, decision, {})
         previous_node = decision
@@ -215,7 +216,7 @@ class Pipeline:
             swimming_lane = "[" + swimming_lane.rstrip() + "]"
         node_name = swimming_lane + " ".join(avo["node_text"])
         action = self.act_interface.create_add_node(
-            activity_id, "Action", {"name": node_name}
+            activity_id, NodeType.ACTION, {"name": node_name}
         )
         self.act_interface.create_connection(
             activity_id, previous_node, action, {"guard": guard}
@@ -231,7 +232,7 @@ class Pipeline:
             swimming_lane = "[" + swimming_lane.rstrip() + "]"
         node_name = swimming_lane + " ".join(avo["node_text"])
         action = self.act_interface.create_add_node(
-            activity_id, "Action", {"name": node_name}
+            activity_id, NodeType.ACTION, {"name": node_name}
         )
         self.act_interface.create_connection(activity_id, previous_node, action, {})
         previous_node = action
@@ -594,7 +595,7 @@ class Pipeline:
             - [previous_node (str), conditional_start_node (str)]
         """
         merge_node = self.act_interface.create_add_node(
-            activity_id, "Merge", {"name": "MergeNode"}
+            activity_id, NodeType.MERGE, {"name": "MergeNode"}
         )
         self.act_interface.create_connection(activity_id, previous_node, merge_node, {})
         guard = " ".join(avo_sent["complete_sent"])
@@ -854,7 +855,7 @@ class Pipeline:
                 return [previous_node, len(conditional_results)]
             else:
                 merge_node_key = self.act_interface.create_add_node(
-                    activity_id, "Merge", {"name": "MergeNode"}
+                    activity_id, NodeType.MERGE, {"name": "MergeNode"}
                 )
                 self.act_interface.create_connection(
                     activity_id, previous_node, merge_node_key, {"guard": guard}
@@ -922,7 +923,7 @@ class Pipeline:
         self.act_interface.clear_data()
         activity_id = self.create_activity_server(activity_name)
         node_id = self.act_interface.create_add_node(
-            activity_id, "Initial", {"name": "Initial"}
+            activity_id, NodeType.INITIAL, {"name": "Initial"}
         )
         previous_node = node_id
         guard = ""
@@ -993,7 +994,7 @@ class Pipeline:
                 break
             avo_index += 1
         final = self.act_interface.create_add_node(
-            activity_id, "ActivityFinal", {"name": "Final"}
+            activity_id, NodeType.ACTIVITY_FINAL, {"name": "Final"}
         )
         self.act_interface.create_connection(activity_id, previous_node, final, {})
         # add else paths
@@ -1001,6 +1002,7 @@ class Pipeline:
         self.act_interface.identify_termination_actions_and_add_termination()
         # remove single merge nodes.
         self.act_interface.remove_single_merge_nodes()
+        self.act_interface.remove_double_actions()
         data = self.act_interface.create_post_data()
         return self.act_interface.post_activity_data_to_server(
             self.act_interface.post_url, data
