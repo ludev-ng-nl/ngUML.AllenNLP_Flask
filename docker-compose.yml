@@ -8,6 +8,7 @@ services:
       - "5053:5000"
     volumes:
       - ./allen_nlp:/app
+      - ./allen_nlp_cache:/root/.allennlp/cache
     networks:
       - "default"
       - "nguml_backend_default"

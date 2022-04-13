@@ -43,6 +43,11 @@ class AllenNLPinterface:
         if not self.service_online():
             return False
         res = requests.post(self.url, json=sentences)
+        print(
+            "Doing another call, to free up memory. service is {} online".format(
+                self.service_online()
+            )
+        )
         self.result = json.loads(res.text)
         return True
 

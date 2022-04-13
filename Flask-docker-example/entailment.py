@@ -10,14 +10,14 @@ class Entailment(AllenNLPinterface):
     def __init__(self) -> None:
         """Init class."""
         # AllenNLPinterface.__init__(self, "http://allen_abgs:5000/predict/snliadv/loac")
-        AllenNLPinterface.__init__(self, "http://allen_abgs:5000/predict/test")
+        AllenNLPinterface.__init__(self, "http://allen_nlp:5000/predict/entail")
 
     # def create_input_dict(self, premise: str, hypothesis: str):
     #     """Create input object with premise and hypothesis"""
     #     input_object = {"premise": premise, "hypothesis": hypothesis}
     #     return input_object
 
-    def entailment(self, document:list) -> list:
+    def entailment(self, document: list) -> list:
         """Process entailment for a premise and hypothesis.
 
         Description:
@@ -27,7 +27,7 @@ class Entailment(AllenNLPinterface):
            processes the input data of a entailment.
         Args:
             - document (list): contains a list of dictionary elements with each a premise and hypothesis.
-        
+
         Returns:
             - result (list): a list with all the results from the entailment
         """

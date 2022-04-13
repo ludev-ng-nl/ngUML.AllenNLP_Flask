@@ -5,6 +5,7 @@ import nltk
 from flask import Flask, jsonify, request
 from _collections_abc import Mapping
 from allennlp.predictors.predictor import Predictor
+from allennlp_models.pretrained import load_predictor
 
 app = Flask(__name__)
 
@@ -80,6 +81,17 @@ def constituency():
     print(data, file=sys.stderr)
     print("not completely implemented, needs testing", file=sys.stderr)
     predictor = Predictor.from_path("src/elmo-constituency-parser-2020.02.10.tar.gz")
+    result = predictor.predict_batch_json(data)
+    return jsonify(output=result)
+
+
+@app.route("/predict/entail", methods=["GET", "POST"])
+def predict_using_other():
+    """Try batch prediction."""
+    if flask.request.method == "GET":
+        return handle_get_request("Text entailment")
+    data = request.get_json()
+    predictor = load_predictor("pair-classification-roberta-snli")
     result = predictor.predict_batch_json(data)
     return jsonify(output=result)
 
