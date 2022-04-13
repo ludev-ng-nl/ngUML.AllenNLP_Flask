@@ -1,5 +1,6 @@
-import requests
+"""Module to connect to the allen nlp api."""
 import json
+import requests
 import nltk
 from error_handler import handle_request_error
 
@@ -12,6 +13,7 @@ class AllenNLPinterface:
         self.url = url
 
     def service_online(self):
+        """Check if the service on the self.url is online."""
         try:
             get = requests.get(self.url)
             if get.status_code == 200:
@@ -20,13 +22,16 @@ class AllenNLPinterface:
             else:
                 handle_request_error(
                     404,
-                    f"{self.url}: is Not reachable, status_code: {get.status_code}. Is the AllenNLP service running?",
+                    (
+                        f"{self.url}: is Not reachable, status_code: {get.status_code}. "
+                        + "Is the AllenNLP service running?"
+                    ),
                 )
                 return False
-        except requests.exceptions.RequestException as e:
+        except requests.exceptions.RequestException as exception:
             handle_request_error(
                 404,
-                f"{self.url}: is Not reachable \nErr:{e}. Is the AllenNLP service running?",
+                f"{self.url}: is Not reachable \nErr:{exception}. Is the AllenNLP service running?",
             )
             return False
 
@@ -34,7 +39,8 @@ class AllenNLPinterface:
         """Connects to the AllenNLP Container and performs a prediction on the document.
 
         Args:
-           - sentences (list(dict)): list of sentences. [{"sentence": "Pete went to the shop."}, {"sentence": "..."}]
+           - sentences (list(dict)): list of sentences. [{"sentence": "Pete went to the shop."},
+                {"sentence": "..."}]
 
         Returns:
            - False: if the service is not online
@@ -62,7 +68,8 @@ class AllenNLPinterface:
            - input_text (str): string of text needed to parse with semantic role labelling.
 
         Returns:
-           - input_object (list(dict_items)): List of dict items. Each dict item specifies a sentence.
+           - input_object (list(dict_items)): List of dict items. Each dict item specifies
+                a sentence.
         """
         sen_list = nltk.tokenize.sent_tokenize(input_text)
         input_object = []
