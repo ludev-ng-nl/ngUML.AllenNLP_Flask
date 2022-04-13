@@ -54,16 +54,6 @@ services:
     networks:
       - default
       - nguml_backend_default
-  # stanza:
-  #   build:
-  #     context: "."
-  #     dockerfile: "Dockerfile.stanza"
-  #   ports:
-  #     - "5052:5000"
-  #   volumes:
-  #     - ./stanza:/app
-  #   networks:
-  #     - default
 networks:
   default:
     driver: bridge
