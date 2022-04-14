@@ -8,7 +8,7 @@ from nltk.tokenize import word_tokenize, sent_tokenize
 import activity_interface as act_int
 import condition_extraction as cond_extr
 from configuration.indicators import empty_conditional_indicators
-from activity_model_classes.node import NodeType
+from activity_model.node import NodeType
 import allen_nlp.semantic_role_labelling as sem_rol
 import allen_nlp.coreference as corefer
 import allen_nlp.entailment as entail
