@@ -1,7 +1,7 @@
 """Module to connect to api with AllenNLP running and transform the outcomes."""
 import nltk
 from allen_nlp_interface import AllenNLPinterface
-from indicators import conditional_indicators as cond_ind
+from configuration.indicators import conditional_indicators as cond_ind
 
 
 nltk.download("punkt")

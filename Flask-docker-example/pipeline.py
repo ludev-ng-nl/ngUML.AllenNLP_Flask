@@ -10,7 +10,7 @@ import condition_extraction as cond_extr
 import semantic_role_labelling as sem_rol
 import coreference as corefer
 import entailment as entail
-from indicators import empty_conditional_indicators
+from configuration.indicators import empty_conditional_indicators
 from activity_model_classes.node import NodeType
 
 
