@@ -2,7 +2,7 @@
 from flask import Flask, request
 import numpy as np
 from pipeline import run_latest_demo, test_condition_extraction, test_model_building
-import text_support as text_sup
+import tools.text_support as text_sup
 
 app = Flask(__name__)
 
