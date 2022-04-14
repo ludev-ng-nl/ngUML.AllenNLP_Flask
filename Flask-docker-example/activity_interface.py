@@ -326,7 +326,7 @@ class ActivityInterface:
 
         Returns:
            - node_keys (list): a list of keys of conditional nodes."""
-        return [key for key in self.nodes if self.nodes[key].type == node_type]
+        return [key for key, node in self.nodes.items() if node.type == node_type]
 
     def get_connections_using_node_id(self, node_id: str, from_node: bool) -> str:
         """Get the connections with the from node id.
@@ -341,14 +341,14 @@ class ActivityInterface:
         if from_node:
             return [
                 connection_id
-                for connection_id in self.connections
-                if self.connections[connection_id].from_node_key == node_id
+                for connection_id, connection in self.connections.items()
+                if connection.from_node_key == node_id
             ]
         else:
             return [
                 connection_id
-                for connection_id in self.connections
-                if self.connections[connection_id].to_node_key == node_id
+                for connection_id, connection in self.connections.items()
+                if connection.to_node_key == node_id
             ]
 
     def get_connections_using_from_node_id(self, from_node_id: str) -> list:
@@ -615,7 +615,7 @@ class ActivityInterface:
         condition_action_termination_nodes = (
             self.select_last_actions_of_conditions_with_termination()
         )
-        for condition_id, action_ids in condition_action_termination_nodes.items():
+        for action_ids in condition_action_termination_nodes.values():
             for action_id in action_ids:
                 # There might be multiple action_ids.
                 connection_id = self.get_connections_using_from_node_id(action_id)
