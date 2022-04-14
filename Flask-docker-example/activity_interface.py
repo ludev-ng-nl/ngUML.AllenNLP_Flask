@@ -8,9 +8,9 @@ import spacy
 from error_handler import handle_request_error
 from nltk.tokenize import RegexpTokenizer
 from indicators import termination_indicators
-from node import Node, NodeChange, NodeType
-from connection import Connection, ConnectionChange
-from activity import Activity
+from activity_model_classes.node import Node, NodeChange, NodeType
+from activity_model_classes.connection import Connection, ConnectionChange
+from activity_model_classes.activity import Activity
 
 nlp_spacy = spacy.load("en_core_web_sm")
 

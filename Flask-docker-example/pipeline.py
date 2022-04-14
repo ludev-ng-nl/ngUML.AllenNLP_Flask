@@ -5,13 +5,13 @@ import nltk
 import spacy
 from nltk import pos_tag
 from nltk.tokenize import word_tokenize, sent_tokenize
-import activityInterface as actInt
-import conditionExtraction as condExtr
+import activity_interface as act_int
+import condition_extraction as cond_extr
 import semantic_role_labelling as sem_rol
 import coreference as corefer
 import entailment as entail
 from indicators import empty_conditional_indicators
-from node import NodeType
+from activity_model_classes.node import NodeType
 
 
 nltk.download("averaged_perceptron_tagger")
@@ -29,7 +29,7 @@ class Pipeline:
         self.triples = []
         self.action_nodes = []
         self.doubles = []
-        self.act_interface = actInt.ActivityInterface()
+        self.act_interface = act_int.ActivityInterface()
         self.srl_output = []
 
     def get_text(self) -> None:
@@ -1052,7 +1052,7 @@ class Pipeline:
         """Run demo for a given text."""
         srl = sem_rol.SemanticRoleLabelling()
         srl_result = srl.semrol_text(text)
-        condition_res = condExtr.extract_condition_action_data([text], [srl_result])
+        condition_res = cond_extr.extract_condition_action_data([text], [srl_result])
         avo_sents = srl.get_avo_for_sentences(srl_result)
         avo_sents = self.tag_conditions_actions_in_avo_results(
             avo_sents, condition_res[0]
@@ -1083,7 +1083,7 @@ def test_condition_extraction(test_text: str) -> list:
     ppl = Pipeline()
     srl = sem_rol.SemanticRoleLabelling()
     srl_result = srl.semrol_text(test_text)
-    condition_res = condExtr.extract_condition_action_data([test_text], [srl_result])
+    condition_res = cond_extr.extract_condition_action_data([test_text], [srl_result])
     avo_sents = srl.get_avo_for_sentences(srl_result)
     avo_sents = ppl.tag_conditions_actions_in_avo_results(avo_sents, condition_res[0])
     return [condition_res, avo_sents]
@@ -1105,7 +1105,7 @@ def run_latest_demo(name: str, test_text: str, post_model: bool) -> list:
     ppl = Pipeline()
     srl = sem_rol.SemanticRoleLabelling()
     srl_result = srl.semrol_text(test_text)
-    condition_res = condExtr.extract_condition_action_data([test_text], [srl_result])
+    condition_res = cond_extr.extract_condition_action_data([test_text], [srl_result])
     avo_sents = srl.get_avo_for_sentences(srl_result)
     avo_sents = ppl.tag_conditions_actions_in_avo_results(avo_sents, condition_res[0])
     coref = ppl.coreference_text(test_text)
