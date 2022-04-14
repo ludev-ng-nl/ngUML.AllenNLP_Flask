@@ -7,11 +7,11 @@ from nltk import pos_tag
 from nltk.tokenize import word_tokenize, sent_tokenize
 import activity_interface as act_int
 import condition_extraction as cond_extr
+from configuration.indicators import empty_conditional_indicators
+from activity_model_classes.node import NodeType
 import allen_nlp.semantic_role_labelling as sem_rol
 import allen_nlp.coreference as corefer
 import allen_nlp.entailment as entail
-from configuration.indicators import empty_conditional_indicators
-from activity_model_classes.node import NodeType
 
 
 nltk.download("averaged_perceptron_tagger")

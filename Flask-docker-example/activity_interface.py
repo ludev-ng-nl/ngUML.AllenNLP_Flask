@@ -5,7 +5,7 @@ import json
 import requests
 import nltk
 import spacy
-from error_handler import handle_request_error
+from tools.error_handler import handle_request_error
 from nltk.tokenize import RegexpTokenizer
 from configuration.indicators import termination_indicators
 from activity_model_classes.node import Node, NodeChange, NodeType

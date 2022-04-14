@@ -1,13 +1,12 @@
 """Module to extract conditions and actions from text."""
 import nltk
-from nltk import text
 from tqdm import tqdm
-import allen_nlp.semantic_role_labelling as sem_rol
 from configuration.indicators import (
     conditional_indicators as cond_ind,
     empty_conditional_indicators,
 )
-import text_support as txt_sup
+import tools.text_support as txt_sup
+import allen_nlp.semantic_role_labelling as sem_rol
 
 
 class ConditionExtraction:

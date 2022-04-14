@@ -2,7 +2,7 @@
 import json
 import requests
 import nltk
-from error_handler import handle_request_error
+from tools.error_handler import handle_request_error
 
 
 class AllenNLPinterface:
