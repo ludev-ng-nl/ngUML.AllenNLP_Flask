@@ -1,7 +1,7 @@
 """Module to connect to api with AllenNLP running and transform the outcomes."""
 import nltk
-from allen_nlp_interface import AllenNLPinterface
 from configuration.indicators import conditional_indicators as cond_ind
+from allen_nlp.allen_nlp_interface import AllenNLPinterface
 
 
 nltk.download("punkt")
@@ -13,7 +13,7 @@ class SemanticRoleLabelling(AllenNLPinterface):
     # Functions
     def __init__(self) -> None:
         AllenNLPinterface.__init__(self, "http://allen_nlp:5000/predict/srl")
-        self.result = []
+        self.result = {}
         self.triples = []
         self.actors = []
         self.verbs = []
@@ -350,14 +350,3 @@ class SemanticRoleLabelling(AllenNLPinterface):
                 ]
                 avo_results.append(avo_data)
         return avo_results
-
-
-# #Demonstration
-# test_text = "A customer brings in a defective computer and the CRS checks the defect and hands out a repair cost calculation back. If the customer decides that the costs are acceptable, the process continues, otherwise she takes her computer home unrepaired. The ongoing repair consists of two activities, which are executed, in an arbitrary order. The first activity is to check and repair the hardware, whereas the second activity checks and configures the software. After each of these activities, the proper system functionality is tested. If an error is detected another arbitrary repair activity is executed, otherwise the repair is finished."
-# srl = SemanticRoleLabelling()
-# srl_result = srl.semrol_text(test_text)
-# avo_results = []
-# for res in srl_result:
-#    avo_res = srl.get_avo_sentence(res)
-#    avo_results.append(avo_res)
-#    srl.print_avo_sent(avo_res,res)

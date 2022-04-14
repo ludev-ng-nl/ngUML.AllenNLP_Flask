@@ -2,8 +2,11 @@
 import nltk
 from nltk import text
 from tqdm import tqdm
-import semantic_role_labelling as sem_rol
-from configuration.indicators import conditional_indicators as cond_ind, empty_conditional_indicators
+import allen_nlp.semantic_role_labelling as sem_rol
+from configuration.indicators import (
+    conditional_indicators as cond_ind,
+    empty_conditional_indicators,
+)
 import text_support as txt_sup
 
 

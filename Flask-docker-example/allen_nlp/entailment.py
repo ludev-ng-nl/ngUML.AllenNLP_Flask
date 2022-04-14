@@ -1,7 +1,7 @@
 """Module to connect to AllenNLP library and use entailment implementation"""
 import json
 import requests
-from allen_nlp_interface import AllenNLPinterface
+from allen_nlp.allen_nlp_interface import AllenNLPinterface
 
 
 class Entailment(AllenNLPinterface):
@@ -26,7 +26,8 @@ class Entailment(AllenNLPinterface):
            AllenNLPinterface is the wrapper to acces the container. This function
            processes the input data of a entailment.
         Args:
-            - document (list): contains a list of dictionary elements with each a premise and hypothesis.
+            - document (list): contains a list of dictionary elements with each a
+                premise and hypothesis.
 
         Returns:
             - result (list): a list with all the results from the entailment
