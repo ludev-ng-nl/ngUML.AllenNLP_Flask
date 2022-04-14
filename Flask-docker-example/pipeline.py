@@ -5,7 +5,7 @@ import nltk
 import spacy
 from nltk import pos_tag
 from nltk.tokenize import word_tokenize, sent_tokenize
-import activity_interface as act_int
+import activity_model.activity_interface as act_int
 import condition_extraction as cond_extr
 from configuration.indicators import empty_conditional_indicators
 from activity_model.node import NodeType
