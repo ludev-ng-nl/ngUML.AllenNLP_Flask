@@ -9,12 +9,9 @@ from allennlp_models.pretrained import load_predictor
 
 app = Flask(__name__)
 
-
 # from nltk.tokenize import word_tokenize
 
-
 nltk.download("punkt")
-
 
 @app.route("/")
 def hello_world():
@@ -45,7 +42,7 @@ def predict():
                 + "items that are dicts of sentences."
             )
     predictor = Predictor.from_path(
-        "src/structured-prediction-srl-bert.2020.12.15.tar.gz"
+        "/opt/allen_nlp/structured-prediction-srl-bert.2020.12.15.tar.gz"
     )
     result = predictor.predict_batch_json(data)
     return jsonify(output=result)
@@ -66,7 +63,7 @@ def coreference():
         )
     if "document" not in data:
         return "The key 'document' is not found in the dictionary."
-    predictor = Predictor.from_path("src/coref-spanbert-large-2021.03.10.tar.gz")
+    predictor = Predictor.from_path("/opt/allen_nlp/coref-spanbert-large-2021.03.10.tar.gz")
     result = predictor.predict(document=data["document"])
     return jsonify(output=result)
 
@@ -80,7 +77,7 @@ def constituency():
     # TODO add data verification
     print(data, file=sys.stderr)
     print("not completely implemented, needs testing", file=sys.stderr)
-    predictor = Predictor.from_path("src/elmo-constituency-parser-2020.02.10.tar.gz")
+    predictor = Predictor.from_path("/opt/allen_nlp/elmo-constituency-parser-2020.02.10.tar.gz")
     result = predictor.predict_batch_json(data)
     return jsonify(output=result)
 
