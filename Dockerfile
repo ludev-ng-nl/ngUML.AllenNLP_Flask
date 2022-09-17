@@ -3,7 +3,7 @@ RUN apt-get update && apt-get install build-essential -y
 
 # Install AllenNLP Flask FE
 COPY src/requirements.txt /app/requirements.txt
-RUN pip3 install -r /src/requirements.txt
+RUN pip3 install -r /app/requirements.txt
 COPY src/ /app
 
 # Install PyTorch essentials
