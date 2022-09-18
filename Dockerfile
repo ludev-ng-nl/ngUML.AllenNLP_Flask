@@ -1,5 +1,6 @@
 FROM python:3.8-slim-buster
 RUN apt-get update && apt-get install build-essential -y
+RUN apt-get update && apt-get install curl -y
 
 # Install AllenNLP Flask FE
 COPY src/requirements.txt /app/requirements.txt
