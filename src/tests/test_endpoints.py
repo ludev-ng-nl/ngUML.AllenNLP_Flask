@@ -48,17 +48,21 @@ def test_input_endpoints_error(client, path, input_data, error_message_part):
 
 
 @pytest.mark.parametrize(
-    ("path", "input_data"),
+    ("path", "input_data", "keys", "value"),
     (
         (
             "/predict/srl",
             [{"sentence": "The quick brown fox jumps over the lazy dog."}],
+            ["output", 0, "verbs", 0, "tags", 0],
+            "B-ARG0",
         ),
         (
             "/predict/coref",
             {
                 "document": "The quick brown fox jumps over the lazy dog. Thus awakening the lazy dog. Then the fox ran off."
             },
+            ["output", "top_spans", 0],
+            [0, 3],
         ),
         (
             "/predict/entail",
@@ -68,13 +72,20 @@ def test_input_endpoints_error(client, path, input_data, error_message_part):
                     "premise": "the part is not reserved.",
                 }
             ],
+            ["output", 0, "label"],
+            "contradiction",
         ),
     ),
 )
 # @pytest.mark.skip(reason="take too much resources and WIP.")
-def test_endpoints_input(client, path, input_data):
+def test_endpoints_input(client, path, input_data, keys, value):
     """Test if the endpoints can load this data."""
     response = client.post(path, json=input_data)
     json_result = json.loads(response.data)
     assert response.status_code == 200
     assert len(json_result["output"]) > 0
+    data = json_result
+    # access the data we use to compare.
+    for key in keys:
+        data = data[key]
+    assert data == value
