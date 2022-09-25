@@ -4,10 +4,7 @@ import pytest
 # TODO add the entailment.
 @pytest.mark.parametrize(
     "path",
-    (
-        "/predict/srl",
-        "/predict/coref",
-    ),
+    ("/predict/srl", "/predict/coref", "/predict/entail"),
 )
 def test_online(client, path):
     """Test if the endpoints are online."""
@@ -28,6 +25,17 @@ def test_online(client, path):
             "/predict/coref",
             {"something": "something"},
             "The key 'document' is not found",
+        ),
+        ("/predict/entail", {}, "Posted data is not correct - not a list"),
+        (
+            "/predict/entail",
+            [[]],
+            "Posted data is not correct - the 0th item is not a dict",
+        ),
+        (
+            "/predict/entail",
+            [{"premise": "the item is not reserved", "hypo": "the item is reserved."}],
+            "In the 0th item, the key 'hypothesis'",
         ),
     ),
 )
@@ -51,6 +59,15 @@ def test_input_endpoints_error(client, path, input_data, error_message_part):
             {
                 "document": "The quick brown fox jumps over the lazy dog. Thus awakening the lazy dog. Then the fox ran off."
             },
+        ),
+        (
+            "/predict/entail",
+            [
+                {
+                    "hypothesis": "the part is reserved.",
+                    "premise": "the part is not reserved.",
+                }
+            ],
         ),
     ),
 )
