@@ -88,6 +88,22 @@ def predict_using_other():
     if request.method == "GET":
         return handle_get_request("Text entailment")
     data = request.get_json()
+    if not isinstance(data, list):
+        message = (
+            "Posted data is not correct - not a list, provide a list with a "
+            + "dictionary item with a hypothesis and a premise."
+        )
+        return jsonify(isError=True, message=message, status_code=400)
+    for index, hypo_prem_item in enumerate(data):
+        if not isinstance(hypo_prem_item,dict):
+            message = (
+                f"Posted data is not correct - the {index}th item is not a dict, provide a list with a "
+                + "dictionary item with a hypothesis and a premise."
+            )
+            return jsonify(isError=True, message=message, status_code=400)
+        if "hypothesis" not in hypo_prem_item or "premise" not in hypo_prem_item:
+            message = f"In the {index}th item, the key 'hypothesis' or 'premise' is not found."
+            return jsonify(isError=True, message=message, status_code=400)    
     predictor = load_predictor("pair-classification-roberta-snli")
     result = predictor.predict_batch_json(data)
     return jsonify(output=result)
