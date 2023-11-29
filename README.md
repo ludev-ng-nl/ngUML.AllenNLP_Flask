@@ -5,16 +5,10 @@ This is an application that uses the AllenNLP models in a python docker image an
 The AllenNLP example application makes use of docker, therefore it is important to have docker installed on your machine. Furthermore the different required steps are specified in the following sections.
 
 ### NLP models
-Download the NLP models to the correct folder. This can be achieved by running the download_models bash script.
-
-```
-bash download_models.sh
-```
+The NLP models are downloaded using the [entrypoint.sh](docker/entrypoint.sh) script. 
 
 ### Docker
 To run the docker containers one has to deploy them using the docker-compose file.
-
-The first time you will also need to build and deploy the docker file in the [ngUML backend](https://github.com/ludev-ng-nl/ngUML.backend) repository, as the network created in this docker file is used in this project.
 
 Next up we need to build the dockerfile:
 ```
@@ -33,8 +27,8 @@ The NLP models are taken from AllenNLP, currently the Coreference [[1]](#1) and 
 ### Upgrading models
 If the models need to be upgraded in the future there are a few places where the models need to be update. 
 
-1. [download_models.sh](download_models.sh)
-2. [allen_nlp/src/app.py](allen_nlp/src/app.py)
+1. [entrypoint.sh](docker/entrypoint.sh)
+2. [src/application/allen_nlp.py](src/application/allen_nlp.py)
 
 In download_models the url to the downloads need to be changed and in app.py the link to the files need to be changed. That way one is able to upgrade the models if needed.
 
@@ -70,23 +64,18 @@ res = requests.get('http://flask:5000/run_condition_test')
 ```
 8. Step through the code.
 
-## Handy tools
-Using the save and load function from the numpy library allows us to save dictionaries temporarily, such that we can reuse them and don't need to re-rerun everything everytime we restart. Example from [Delftstack](https://www.delftstack.com/howto/python/python-save-dictionary/#save-a-dictionary-to-file-in-python-using-the-save-function-of-numpy-library)
+## Testing framework
+In this application we make use of the pytest framework. Currently it is implemented for the allen_nlp application. You can run the tests first by starting the docker container using the docker-compose command described in [Docker](#docker). Then you will have to ssh into the docker container. Once you are in there navigate to the app folder from here you can run the following command:
+```
+pytest
+```
+Pytest will then take care of the tests it has found. If you would like to see each test function in particular add the `-v` argument to get an overview of each test function. To run specific tests you can do the following:
+```
+pytest tests/test_endpoints.py::test_input_endpoints_error
+```
 
-Saving:
-```
-import numpy as np
+Most of the testing is based on the article on the [Flask](https://flask.palletsprojects.com/en/2.2.x/tutorial/tests/) website. In case you would like to have more information have a look at the [coverage](https://pypi.org/project/coverage/) package, which can generate a nice overview of all the tests. For more advanced testing approaches have a look at the [Pytest](https://docs.pytest.org/en/7.1.x/contents.html#) documentation.
 
-my_dict = { 'Apple': 4, 'Banana': 2, 'Orange': 6, 'Grapes': 11}
-np.save('file.npy', my_dict)
-```
-loading:
-```
-import numpy as np
-
-new_dict = np.load('file.npy', allow_pickle='TRUE')
-print(new_dict.item())
-```
 
 ## References
 <a id="1">[1]</a> 
