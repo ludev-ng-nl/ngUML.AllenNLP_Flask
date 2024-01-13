@@ -1,6 +1,19 @@
 # AllenNLP example
 This is an application that uses the AllenNLP models in a python docker image and can be connected to using another Flask application. The connection is done through a simple API and calls to this API. Through this approach the AllenNLP and prototype application are separated. The separation allows the AllenNLP app to be put on a server somewhere and scaled using proper resources.
 
+## Quick setup
+Create the image:
+```bash
+make local
+```
+Start the containers:
+```bash
+cd compose
+docker compose up
+```
+
+To stop the containers hit `Ctrl-c`.
+
 ## Installation
 The AllenNLP example application makes use of docker, therefore it is important to have docker installed on your machine. Furthermore the different required steps are specified in the following sections.
 

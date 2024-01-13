@@ -1,8 +1,9 @@
 version: "3.9"
 services:
   allen_nlp:
-    build:
-      context: "."
+    image: ${NGUML_ALLEN_IMAGE}
+    env_file:
+      - .env
     ports:
       - "5053:5000"
     volumes:
