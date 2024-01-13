@@ -2,9 +2,9 @@
 #docker run -d -p 2000:2000 thesis-python
 FROM python:3.8-slim-buster
 
-WORKDIR  /app
+WORKDIR /app
 
-COPY Flask-docker-example/requirements.txt requirements.txt
+COPY example/requirements.txt requirements.txt
 RUN pip3 install -r requirements.txt
 
 #add this to the requirements.txt
@@ -15,6 +15,6 @@ RUN python -m nltk.downloader punkt
 RUN python -m nltk.downloader wordnet
 RUN python -m spacy download en_core_web_sm
 
-COPY Flask-docker-example/ .
+COPY example/ .
 
 CMD [ "python3", "-m" , "flask", "run", "--host=0.0.0.0"]

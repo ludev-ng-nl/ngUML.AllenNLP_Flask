@@ -1,0 +1,4 @@
+Flask==3.0.0
+nltk==3.7
+gunicorn==21.0.1
+notebook==6.0.1

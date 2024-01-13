@@ -6,7 +6,6 @@ import tools.text_support as text_sup
 
 app = Flask(__name__)
 
-
 @app.route("/")
 def index():
     """Return hello world as example."""
