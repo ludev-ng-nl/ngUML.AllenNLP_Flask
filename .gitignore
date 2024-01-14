@@ -148,3 +148,4 @@ cython_debug/
 
 .venv*
 /nlp_data
+/_data
