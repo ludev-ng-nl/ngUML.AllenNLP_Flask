@@ -7,11 +7,16 @@ services:
     ports:
       - "5053:5000"
     volumes:
-      - nlp_data:/opt
+      - allen_data:/opt
     networks:
       - allen_net
 volumes:
-  nlp_data:
+  allen_data:
+    driver: local # Define the driver and options under the volume name
+    driver_opts:
+      type: none
+      device: ${PROJECT}/_data/allen/
+      o: bind
 networks:
   allen_net:
     driver: bridge
