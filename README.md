@@ -39,6 +39,20 @@ If the models need to be upgraded in the future there are a few places where the
 
 In download_models the url to the downloads need to be changed and in app.py the link to the files need to be changed. That way one is able to upgrade the models if needed.
 
+## Testing framework
+In this application we make use of the pytest framework. Currently it is implemented for the allen_nlp application. You can run the tests first by starting the docker container using the docker-compose command described earlier. Then you will have to step into the docker container. To do this navigate to the `compose` folder and run the following command:
+```bash
+cd compose
+docker compose exec allen_nlp bash -c "cd app && pytest -s -v"
+```
+Pytest will then take care of the tests it has found. If you would like to see each test function in particular add the `-v` argument to get an overview of each test function. To run specific tests you can do the following:
+```bash
+docker compose exec allen_nlp bash -c "cd app && pytest -s -v tests/test_endpoints.py::test_input_endpoints_error"
+```
+
+Most of the testing is based on the article on the [Flask](https://flask.palletsprojects.com/en/2.2.x/tutorial/tests/) website. In case you would like to have more information have a look at the [coverage](https://pypi.org/project/coverage/) package, which can generate a nice overview of all the tests. For more advanced testing approaches have a look at the [Pytest](https://docs.pytest.org/en/7.1.x/contents.html#) documentation.
+
+
 
 ## References
 <a id="1">[1]</a> 

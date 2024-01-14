@@ -33,16 +33,3 @@ res = requests.get('http://flask:5000/run_condition_test')
 ```
 8. Step through the code.
 
-## Testing framework
-In this application we make use of the pytest framework. Currently it is implemented for the allen_nlp application. You can run the tests first by starting the docker container using the docker-compose command described in [Docker](#docker). Then you will have to ssh into the docker container. Once you are in there navigate to the app folder from here you can run the following command:
-```
-pytest
-```
-Pytest will then take care of the tests it has found. If you would like to see each test function in particular add the `-v` argument to get an overview of each test function. To run specific tests you can do the following:
-```
-pytest tests/test_endpoints.py::test_input_endpoints_error
-```
-
-Most of the testing is based on the article on the [Flask](https://flask.palletsprojects.com/en/2.2.x/tutorial/tests/) website. In case you would like to have more information have a look at the [coverage](https://pypi.org/project/coverage/) package, which can generate a nice overview of all the tests. For more advanced testing approaches have a look at the [Pytest](https://docs.pytest.org/en/7.1.x/contents.html#) documentation.
-
-
